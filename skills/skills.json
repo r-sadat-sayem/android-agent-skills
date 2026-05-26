@@ -1,0 +1,10 @@
+{
+  "skills": [
+    {
+      "name": "xml-to-compose-architect",
+      "path": "skills/xml-to-compose-architect",
+      "description": "Architecture-first XML-to-Compose migration with strict guardrails and performance/state-hoisting checks."
+    }
+  ]
+}
+
