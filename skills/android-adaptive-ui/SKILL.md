@@ -1,3 +1,8 @@
+---
+name: "android-adaptive-ui"
+description: "Audit and fix Android UI code across phones, tablets, foldables, Wear OS, and Android Auto, with form-factor detection, targeted responsiveness fixes, and structured reporting."
+---
+
 # Android Adaptive UI Architect
 
 Audit and fix Android UI code for all screen classes: phones, tablets, foldables, Wear OS, Android Auto.

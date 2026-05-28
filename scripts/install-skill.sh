@@ -33,6 +33,23 @@ OVERRIDE_NAME=""
 CODEX_BASE="${HOME}/.codex/skills"
 CLAUDE_BASE="${HOME}/.claude/skills"
 
+validate_skill_identifier() {
+  local value="$1"
+  local label="$2"
+  if [[ -z "$value" ]]; then
+    echo "Invalid ${label}: cannot be empty."
+    exit 1
+  fi
+  if [[ "$value" == "." || "$value" == ".." || "$value" == *"/"* || "$value" == *"\\"* ]]; then
+    echo "Invalid ${label}: path separators and traversal are not allowed: ${value}"
+    exit 1
+  fi
+  if [[ ! "$value" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
+    echo "Invalid ${label}: use only letters, numbers, dot, underscore, and dash: ${value}"
+    exit 1
+  fi
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --target) TARGET="${2:-}"; shift 2 ;;
@@ -72,6 +89,14 @@ if [[ -n "$OVERRIDE_NAME" && $INSTALL_ALL -eq 1 ]]; then
   exit 1
 fi
 
+if [[ -n "$SELECTED_SKILL" ]]; then
+  validate_skill_identifier "$SELECTED_SKILL" "--skill"
+fi
+
+if [[ -n "$OVERRIDE_NAME" ]]; then
+  validate_skill_identifier "$OVERRIDE_NAME" "--name"
+fi
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 SKILLS_DIR="${REPO_ROOT}/skills"
@@ -108,6 +133,7 @@ install_one_target() {
 install_skill() {
   local skill_name="$1"
   local src_dir="${SKILLS_DIR}/${skill_name}"
+  validate_skill_identifier "$skill_name" "skill name"
 
   if [[ ! -d "$src_dir" ]]; then
     echo "Skill not found: ${skill_name}"

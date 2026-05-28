@@ -70,10 +70,12 @@ ls -la ~/.codex/skills/android-adaptive-ui
 ls -la ~/.claude/skills/android-adaptive-ui
 ```
 
-One-line install via `curl` (published repo):
+Remote bootstrap install (download, inspect, run):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/r-sadat-sayem/android-agent-skills/main/scripts/bootstrap-install.sh | bash -s -- --repo https://github.com/r-sadat-sayem/android-agent-skills.git --skill android-adaptive-ui --target both
+curl -fsSL https://raw.githubusercontent.com/r-sadat-sayem/android-agent-skills/main/scripts/bootstrap-install.sh -o /tmp/bootstrap-install.sh
+less /tmp/bootstrap-install.sh
+bash /tmp/bootstrap-install.sh --repo https://github.com/r-sadat-sayem/android-agent-skills.git --skill android-adaptive-ui --target both
 ```
 
 ---

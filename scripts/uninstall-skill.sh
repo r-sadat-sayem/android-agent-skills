@@ -24,6 +24,23 @@ REMOVE_ALL=0
 CODEX_BASE="${HOME}/.codex/skills"
 CLAUDE_BASE="${HOME}/.claude/skills"
 
+validate_skill_identifier() {
+  local value="$1"
+  local label="$2"
+  if [[ -z "$value" ]]; then
+    echo "Invalid ${label}: cannot be empty."
+    exit 1
+  fi
+  if [[ "$value" == "." || "$value" == ".." || "$value" == *"/"* || "$value" == *"\\"* ]]; then
+    echo "Invalid ${label}: path separators and traversal are not allowed: ${value}"
+    exit 1
+  fi
+  if [[ ! "$value" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
+    echo "Invalid ${label}: use only letters, numbers, dot, underscore, and dash: ${value}"
+    exit 1
+  fi
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --target) TARGET="${2:-}"; shift 2 ;;
@@ -51,6 +68,10 @@ if [[ $REMOVE_ALL -eq 0 && -z "$SELECTED_SKILL" ]]; then
   exit 1
 fi
 
+if [[ -n "$SELECTED_SKILL" ]]; then
+  validate_skill_identifier "$SELECTED_SKILL" "--skill"
+fi
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 SKILLS_DIR="${REPO_ROOT}/skills"
@@ -71,6 +92,7 @@ remove_one_target() {
 
 remove_skill() {
   local skill_name="$1"
+  validate_skill_identifier "$skill_name" "skill name"
 
   if [[ "$TARGET" == "codex" || "$TARGET" == "both" ]]; then
     remove_one_target "$CODEX_BASE" "Codex" "$skill_name"

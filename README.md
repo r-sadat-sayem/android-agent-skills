@@ -56,18 +56,22 @@ Other target values:
 1. `--target codex` installs only to Codex
 2. `--target claude` installs only to Claude
 
-One-line install via `curl`:
+Remote bootstrap install (safer flow: download, inspect, then run):
 
 Install one skill:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/r-sadat-sayem/android-agent-skills/main/scripts/bootstrap-install.sh | bash -s -- --repo https://github.com/r-sadat-sayem/android-agent-skills.git --skill <skill-name> --target both
+curl -fsSL https://raw.githubusercontent.com/r-sadat-sayem/android-agent-skills/main/scripts/bootstrap-install.sh -o /tmp/bootstrap-install.sh
+less /tmp/bootstrap-install.sh
+bash /tmp/bootstrap-install.sh --repo https://github.com/r-sadat-sayem/android-agent-skills.git --skill <skill-name> --target both
 ```
 
 Install all skills:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/r-sadat-sayem/android-agent-skills/main/scripts/bootstrap-install.sh | bash -s -- --repo https://github.com/r-sadat-sayem/android-agent-skills.git --all --target both
+curl -fsSL https://raw.githubusercontent.com/r-sadat-sayem/android-agent-skills/main/scripts/bootstrap-install.sh -o /tmp/bootstrap-install.sh
+less /tmp/bootstrap-install.sh
+bash /tmp/bootstrap-install.sh --repo https://github.com/r-sadat-sayem/android-agent-skills.git --all --target both
 ```
 
 Install mode options:
