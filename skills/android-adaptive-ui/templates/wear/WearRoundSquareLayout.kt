@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.unit.dp
 import androidx.wear.compose.material3.Text
 
 // ─── Screen shape detection ───────────────────────────────────────────────────
@@ -72,8 +73,6 @@ fun wearHorizontalPadding(): androidx.compose.ui.unit.Dp {
         else -> 16.dp
     }
 }
-
-private val Int.dp get() = androidx.compose.ui.unit.dp.run { this@dp.dp }
 
 // ─── Preview ──────────────────────────────────────────────────────────────────
 

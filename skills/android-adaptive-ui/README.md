@@ -329,12 +329,24 @@ python scripts/layout_audit.py --src ./app/src/main --show-info
       --memory .adaptive-ui-memory.json \
       --format json > audit-report.json
 
+- name: Wear template smoke check
+  run: |
+    python ./skills/android-adaptive-ui/scripts/template_smoke_check.py
+
 - name: Upload audit report
   uses: actions/upload-artifact@v4
   with:
     name: adaptive-ui-audit
     path: audit-report.json
 ```
+
+### Template smoke check (local/CI)
+
+```bash
+python ./skills/android-adaptive-ui/scripts/template_smoke_check.py
+```
+
+This check is intentionally lightweight and catches compile-breaking template anti-patterns (for example invalid custom `Int.dp` extension helpers) before templates are copied into app code.
 
 ### What the audit checks
 
@@ -347,6 +359,18 @@ python scripts/layout_audit.py --src ./app/src/main --show-info
 | `FormFactorComplianceChecker` | Wear/mobile `MaterialTheme` cross-contamination; Compose in Auto `Screen`; `WindowInfoTracker` without lifecycle collection |
 | `TextOverflowChecker` | `Text()` without `overflow` or `maxLines` |
 
+### What the audit does not check (yet)
+
+| Not checked | Detail |
+|---|---|
+| Full Kotlin AST semantics | Regex + heuristic based checks only. |
+| Runtime behavior | No emulator/device execution. |
+| View system fix generation | XML findings are reported, but templates are Compose-first. |
+| Compose compiler compatibility matrix | Assumes project uses compatible Compose/Kotlin versions. |
+| KMP source-set correctness | Does not validate `commonMain` vs `androidMain` boundaries. |
+
+Rule IDs and changelog: `references/audit-rules.md`
+
 ---
 
 ## File Structure
@@ -358,6 +382,7 @@ android-adaptive-ui/
 │
 ├── scripts/
 │   └── layout_audit.py                  ← Standalone audit script, no pip dependencies
+│   └── template_smoke_check.py          ← Wear template compile-safety smoke checks
 │
 ├── templates/
 │   ├── phone/
@@ -383,7 +408,8 @@ android-adaptive-ui/
 ├── references/
 │   ├── breakpoints.md                   ← All 5 WindowSizeClass width breakpoints + posture matrix
 │   ├── density-table.md                 ← ldpi → xxxhdpi table, Compose vs XML, anti-patterns
-│   └── dependencies.md                 ← Gradle TOML blocks per form factor
+│   ├── dependencies.md                 ← Gradle TOML blocks per form factor
+│   └── audit-rules.md                  ← Rule IDs + audit behavior changelog
 │
 └── gradle/
     ├── libs.versions.toml.snippet       ← Paste-ready version catalog entries

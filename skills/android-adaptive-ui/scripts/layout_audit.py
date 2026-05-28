@@ -437,21 +437,55 @@ class ScrollabilityChecker:
         except ET.ParseError:
             return
 
-        def has_scroll_ancestor(xml_root: ET.Element) -> bool:
-            scroll_tags = {"ScrollView", "HorizontalScrollView", "androidx.core.widget.NestedScrollView"}
-            return any(
-                (n.tag.split("}")[-1] if "}" in n.tag else n.tag) in scroll_tags
-                for n in xml_root.iter()
-            )
+        with open(path, encoding="utf-8", errors="replace") as f:
+            raw_xml_lines = f.readlines()
+
+        scroll_tags = {"ScrollView", "HorizontalScrollView", "androidx.core.widget.NestedScrollView"}
+        parent_map = {child: parent for parent in root.iter() for child in parent}
+
+        def _tag_name(node: ET.Element) -> str:
+            return node.tag.split("}")[-1] if "}" in node.tag else node.tag
+
+        def _android_id(node: ET.Element) -> str:
+            # ET stores namespaced attributes as {uri}name.
+            return node.attrib.get("{http://schemas.android.com/apk/res/android}id", "")
+
+        def _element_descriptor(node: ET.Element) -> str:
+            android_id = _android_id(node)
+            return f"{_tag_name(node)}[{android_id}]" if android_id else _tag_name(node)
+
+        def _line_hint(node: ET.Element) -> int:
+            android_id = _android_id(node)
+            if android_id:
+                for i, line in enumerate(raw_xml_lines, 1):
+                    if android_id in line:
+                        return i
+
+            # Fallback to first tag occurrence in source.
+            tag = _tag_name(node)
+            needle = f"<{tag}"
+            for i, line in enumerate(raw_xml_lines, 1):
+                if needle in line:
+                    return i
+            return 1
+
+        def _has_scroll_ancestor(node: ET.Element) -> bool:
+            current = parent_map.get(node)
+            while current is not None:
+                if _tag_name(current) in scroll_tags:
+                    return True
+                current = parent_map.get(current)
+            return False
 
         for elem in root.iter():
-            tag = elem.tag.split("}")[-1] if "}" in elem.tag else elem.tag
+            tag = _tag_name(elem)
             n_children = len(list(elem))
-            if tag == "LinearLayout" and n_children >= _ITEM_THRESHOLD and not has_scroll_ancestor(root):
+            if tag == "LinearLayout" and n_children >= _ITEM_THRESHOLD and not _has_scroll_ancestor(elem):
+                descriptor = _element_descriptor(elem)
                 result.add(Finding(
                     severity="WARNING", category="Scrollability",
-                    file=path, line=0,
-                    message=f"LinearLayout with {n_children} children has no ScrollView ancestor.",
+                    file=path, line=_line_hint(elem),
+                    message=f"{descriptor} has {n_children} children with no ScrollView ancestor.",
                     fix="Wrap in a ScrollView or migrate to RecyclerView / LazyColumn.",
                 ))
 
