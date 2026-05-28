@@ -348,6 +348,18 @@ python ./skills/android-adaptive-ui/scripts/template_smoke_check.py
 
 This check is intentionally lightweight and catches compile-breaking template anti-patterns (for example invalid custom `Int.dp` extension helpers) before templates are copied into app code.
 
+### Fast fix validation (local/CI)
+
+```bash
+./skills/android-adaptive-ui/scripts/validate_fixes.sh ./app/src/main
+```
+
+Use this for quick post-fix verification without running the full audit. It checks for:
+- Deprecated `calculateWindowSizeClass(...)`
+- Remaining `BottomNavigation`/`NavigationBar`
+- Manifest orientation locks
+- Adaptive API usage without `@OptIn(ExperimentalMaterial3AdaptiveApi::class)`
+
 ### What the audit checks
 
 | Checker | What it catches |
@@ -383,6 +395,7 @@ android-adaptive-ui/
 ├── scripts/
 │   └── layout_audit.py                  ← Standalone audit script, no pip dependencies
 │   └── template_smoke_check.py          ← Wear template compile-safety smoke checks
+│   └── validate_fixes.sh                ← Fast grep-based post-fix verifier
 │
 ├── templates/
 │   ├── phone/
@@ -409,6 +422,7 @@ android-adaptive-ui/
 │   ├── breakpoints.md                   ← All 5 WindowSizeClass width breakpoints + posture matrix
 │   ├── density-table.md                 ← ldpi → xxxhdpi table, Compose vs XML, anti-patterns
 │   ├── dependencies.md                 ← Gradle TOML blocks per form factor
+│   ├── form-factor-decision-guide.md    ← Signals -> recommendation -> complexity
 │   └── audit-rules.md                  ← Rule IDs + audit behavior changelog
 │
 └── gradle/
@@ -540,6 +554,7 @@ EXPAND      /android-adaptive-ui add_form_factor <wear|auto|foldable|large-scree
             python scripts/layout_audit.py --src HomeScreen.kt
             python scripts/layout_audit.py --src ui/ res/layout/ --memory .adaptive-ui-memory.json
             python scripts/layout_audit.py --src ./app/src/main --format json
+            ./scripts/validate_fixes.sh ./app/src/main
 
 ── Templates ─────────────────────────────────────────────────
             templates/phone/AdaptiveScaffold.kt
@@ -547,8 +562,12 @@ EXPAND      /android-adaptive-ui add_form_factor <wear|auto|foldable|large-scree
             templates/foldable/PostureDetector.kt
             templates/wear/WearAppScaffold.kt
             templates/auto/MyCarAppService.kt
+            templates/audit-report-template.md
 
 ── Deps ──────────────────────────────────────────────────────
             gradle/libs.versions.toml.snippet   ← merge into version catalog
             gradle/build.gradle.snippet          ← copy block for your form factor
+
+── Decision support ──────────────────────────────────────────
+            references/form-factor-decision-guide.md
 ```

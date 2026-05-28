@@ -29,6 +29,7 @@ Run this BEFORE any workflow. Check the available skills list in your current se
 | `feature-dev:feature-dev` | **Builder** — delegate `add_form_factor` implementation when it requires significant new code |
 | `claude-md-management:revise-claude-md` | **Doc sync** — after any `add_form_factor`, update CLAUDE.md with new patterns |
 | `android-adaptive-ui` memory file | **Primary store** — `.adaptive-ui-memory.json` JSON-LD; always write here regardless of other skills |
+| `solutions-playbook.json` | **Pattern cache** — read `references/solutions-playbook.json` at session start; skip re-reasoning on known patterns |
 
 **Probe output (emit once at session start):**
 ```
@@ -36,6 +37,33 @@ COMPANIONS ───────────────────────
 Active: gsd-graphify · gsd-intel · gsd-thread
 Inactive (not installed): gsd-scan · gsd-debug
 Memory: .adaptive-ui-memory.json
+Playbook: 9 patterns loaded (references/solutions-playbook.json)
+```
+
+**Playbook usage rules:**
+- At session start, read `references/solutions-playbook.json` and index patterns by `detection_signals`.
+- Before writing any fix: check if `detection_signals` of the current finding match a playbook entry. If yes, use `approach` and `code_sketch` directly — do NOT re-reason from scratch.
+- After successfully applying a fix: increment `success_count` on the matched pattern and update `last_applied` timestamp in the local playbook.
+- After any new pattern is discovered and proven: append it to the local playbook using the schema below.
+- Playbook is agent-only (JSON) — never render its raw contents to the user unless explicitly asked.
+
+**New pattern schema (for appending):**
+```json
+{
+  "id": "kebab-case-unique-id",
+  "category": "WindowSizeClass|Navigation|Scrollability|Foldable|Wear|Auto|LargeScreen|TextOverflow|Density",
+  "form_factors": ["phone|large-screen|foldable|wear|auto"],
+  "detection_signals": ["code strings that identify this pattern in source"],
+  "problem": "One sentence: what goes wrong without this fix.",
+  "approach": ["Numbered steps to apply the fix."],
+  "code_sketch": "Minimal Kotlin snippet showing the fix.",
+  "template_ref": "templates/relative/path.kt or null",
+  "constraints": ["Hard constraints — things that must not be done."],
+  "atomic_fix": "fix:command name if one exists, else null",
+  "success_count": 1,
+  "last_applied": "ISO-8601 timestamp",
+  "contributor": "your-github-handle or 'seed'"
+}
 ```
 
 **Integration rules:**
@@ -68,6 +96,7 @@ If detection is ambiguous, ask the developer which form factors they intend to s
 ## 3 — Output Format (apply to ALL workflow responses)
 
 Every response must follow this structure. No prose paragraphs.
+Use `templates/audit-report-template.md` as the fillable output contract.
 
 ```
 SCAN ───────────────────────────────────────────────
@@ -187,6 +216,8 @@ Apply? [yes / no]
 
 ## 7 — Workflow: `add_form_factor <name>`
 
+Before starting, consult `references/form-factor-decision-guide.md` to validate ROI and complexity for the target form factor.
+
 1. Check existing Gradle deps.
 2. `wear` → confirm separate `:wear` module exists or scaffold it. If `feature-dev:feature-dev` active and > 3 new files needed → delegate.
 3. `auto` → confirm separate `:auto`/`:automotive` module or flavor.
@@ -195,6 +226,7 @@ Apply? [yes / no]
 6. Run `fix:optin` and `fix:deps` as post-checks.
 7. If `claude-md-management:revise-claude-md` active → call it now.
 8. Run scoped `analyze_ui --src <new files>` as final validation.
+9. Run `scripts/validate_fixes.sh <project-root>` as fast post-fix verification.
 
 ---
 
@@ -209,7 +241,7 @@ Apply? [yes / no]
 | Android Auto | `auto/MyCarAppService.kt`, `auto/MainScreen.kt` | Template model only — no Compose, no `setContent {}` |
 | Density | `references/density-table.md` | Vectors in `drawable/`; bitmaps need mdpi + xxhdpi minimum |
 
-Breakpoints → `references/breakpoints.md` · Dependencies → `references/dependencies.md`
+Breakpoints → `references/breakpoints.md` · Dependencies → `references/dependencies.md` · Decision guide → `references/form-factor-decision-guide.md`
 
 ---
 

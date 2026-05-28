@@ -1,0 +1,224 @@
+{
+  "schema_version": "1",
+  "description": "Proven fix approaches for Android adaptive UI patterns. Agent reads this at session start to skip re-reasoning on known patterns. Updated by scripts/sync_playbook.py.",
+  "updated_at": "2026-05-28T00:00:00Z",
+  "patterns": [
+    {
+      "id": "window-size-class-api-migration",
+      "category": "WindowSizeClass",
+      "form_factors": ["phone", "large-screen", "foldable"],
+      "detection_signals": ["calculateWindowSizeClass(", "WindowWidthSizeClass.Compact ==", "WindowWidthSizeClass.Expanded ==", "WindowWidthSizeClass.Medium =="],
+      "problem": "Deprecated calculateWindowSizeClass() API or enum equality checks that break when Large/ExtraLarge window classes are added.",
+      "approach": [
+        "1. Replace calculateWindowSizeClass(activity) with val adaptiveInfo = currentWindowAdaptiveInfo()",
+        "2. Replace widthSizeClass == WindowWidthSizeClass.Expanded with isWidthAtLeastBreakpoint(WIDTH_DP_EXPANDED_LOWER_BOUND)",
+        "3. Call currentWindowAdaptiveInfo() ONCE at composition root — pass windowSizeClass down as a plain parameter",
+        "4. Add @file:OptIn(ExperimentalMaterial3AdaptiveApi::class) to every file using adaptive APIs"
+      ],
+      "code_sketch": "val adaptiveInfo = currentWindowAdaptiveInfo()\nval windowSizeClass = adaptiveInfo.windowSizeClass\nval isExpanded = windowSizeClass.isWidthAtLeastBreakpoint(WIDTH_DP_EXPANDED_LOWER_BOUND)",
+      "template_ref": "templates/phone/AdaptiveScaffold.kt",
+      "constraints": [
+        "currentWindowAdaptiveInfo() is @Composable — must be called in composable scope only",
+        "Never re-call deep in the tree — single call at root, pass result down"
+      ],
+      "atomic_fix": "fix:api",
+      "success_count": 1,
+      "last_applied": "2026-05-28T00:00:00Z",
+      "contributor": "seed"
+    },
+    {
+      "id": "navigation-suite-scaffold-migration",
+      "category": "Navigation",
+      "form_factors": ["phone", "large-screen"],
+      "detection_signals": ["BottomNavigation(", "NavigationBar(", "BottomNavigationItem("],
+      "problem": "BottomNavigation always renders as bottom bar regardless of screen size — tablets and foldables need a rail or permanent drawer.",
+      "approach": [
+        "1. Replace BottomNavigation { } with NavigationSuiteScaffold as the root composable",
+        "2. Replace BottomNavigationItem with item() inside navigationSuiteItems = { }",
+        "3. Remove the bottomBar = {} slot from Scaffold — NavigationSuiteScaffold IS the scaffold",
+        "4. NavigationSuiteScaffoldDefaults.calculateFromAdaptiveInfo(adaptiveInfo) handles Compact→Rail→Drawer automatically",
+        "5. Override layoutType only when the product requires a non-default mapping"
+      ],
+      "code_sketch": "NavigationSuiteScaffold(\n    navigationSuiteItems = {\n        item(\n            selected = currentDest == Dest.Home,\n            onClick = { currentDest = Dest.Home },\n            icon = { Icon(Icons.Default.Home, contentDescription = \"Home\") },\n            label = { Text(\"Home\") }\n        )\n    }\n) { /* screen content */ }",
+      "template_ref": "templates/phone/AdaptiveScaffold.kt",
+      "constraints": [
+        "NavigationSuiteScaffold replaces Scaffold as root — do not nest inside Scaffold's bottomBar slot",
+        "Requires material3-adaptive-navigation-suite Gradle dependency"
+      ],
+      "atomic_fix": "fix:nav",
+      "success_count": 1,
+      "last_applied": "2026-05-28T00:00:00Z",
+      "contributor": "seed"
+    },
+    {
+      "id": "column-vertical-scroll",
+      "category": "Scrollability",
+      "form_factors": ["phone"],
+      "detection_signals": ["Column {", "Column("],
+      "problem": "Column with 5+ children clips on compact-height screens such as phones in landscape.",
+      "approach": [
+        "1. Known fixed list: add Modifier.verticalScroll(rememberScrollState()) to the Column",
+        "2. Dynamic/large list: replace Column with LazyColumn — move children to items { } block",
+        "3. Infinite scroll with LazyColumn: see pattern 'infinite-scroll-lazycolumn'"
+      ],
+      "code_sketch": "Column(\n    modifier = Modifier\n        .fillMaxSize()\n        .verticalScroll(rememberScrollState())\n) { /* children */ }",
+      "template_ref": "templates/phone/AdaptiveScaffold.kt",
+      "constraints": [
+        "Never combine .verticalScroll with LazyColumn — lazy lists manage their own scrolling",
+        "rememberScrollState() must be called inside a composable scope"
+      ],
+      "atomic_fix": "fix:scroll",
+      "success_count": 1,
+      "last_applied": "2026-05-28T00:00:00Z",
+      "contributor": "seed"
+    },
+    {
+      "id": "infinite-scroll-lazycolumn",
+      "category": "Scrollability",
+      "form_factors": ["phone", "large-screen"],
+      "detection_signals": ["LazyColumn", "loadMore", "PagingSource", "onLoadMore", "append"],
+      "problem": "Infinite scroll load-more trigger fires on every scroll frame (causes excess recomposition) or is missing entirely (pagination never fires).",
+      "approach": [
+        "1. val listState = rememberLazyListState() — pass to LazyColumn(state = listState)",
+        "2. Derive trigger with derivedStateOf to avoid recomposition on every frame",
+        "3. val shouldLoadMore by remember { derivedStateOf { listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0 >= totalItems - LOAD_THRESHOLD } }",
+        "4. LaunchedEffect(shouldLoadMore) { if (shouldLoadMore && !isLoading) onLoadMore() }",
+        "5. Key each item with stable ID: items(items = list, key = { it.id }) { ... }",
+        "6. LOAD_THRESHOLD = 3..5 items — tune to network latency"
+      ],
+      "code_sketch": "val listState = rememberLazyListState()\nval shouldLoadMore by remember {\n    derivedStateOf {\n        val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0\n        lastVisible >= totalItems - LOAD_THRESHOLD\n    }\n}\nLaunchedEffect(shouldLoadMore) {\n    if (shouldLoadMore && !isLoading) onLoadMore()\n}\nLazyColumn(state = listState) {\n    items(items = list, key = { it.id }) { item ->\n        ItemRow(item)\n    }\n    if (isLoading) item { CircularProgressIndicator() }\n}",
+      "template_ref": "templates/phone/AdaptiveScaffold.kt",
+      "constraints": [
+        "derivedStateOf is the critical piece — without it, shouldLoadMore recomputes on every pixel of scroll",
+        "LaunchedEffect key = shouldLoadMore (not Unit) so it only fires when the boolean flips to true",
+        "Never use firstVisibleItemIndex alone — layoutInfo.visibleItemsInfo is the correct API for last-visible"
+      ],
+      "atomic_fix": null,
+      "success_count": 1,
+      "last_applied": "2026-05-28T00:00:00Z",
+      "contributor": "seed"
+    },
+    {
+      "id": "foldable-posture-detection",
+      "category": "Foldable",
+      "form_factors": ["foldable"],
+      "detection_signals": ["FoldingFeature", "WindowInfoTracker", "DevicePosture", "collectFoldingFeaturesAsState"],
+      "problem": "WindowInfoTracker collected without lifecycle binding leaks on config change, or posture not observed reactively at all.",
+      "approach": [
+        "1. Use rememberDevicePosture() from PostureDetector.kt — wraps WindowInfoTracker lifecycle safely",
+        "2. If rolling your own: WindowInfoTracker.getOrCreate(context).windowLayoutInfo.collectAsStateWithLifecycle()",
+        "3. Map FoldingFeature to DevicePosture sealed class: NormalPosture, TableTopPosture, BookPosture, SeparatingPosture",
+        "4. Branch layout on posture — TableTop: top/bottom split; Book: left/right split",
+        "5. Size hinge Spacer from FoldingFeature.bounds — never hardcode hinge width"
+      ],
+      "code_sketch": "val devicePosture by rememberDevicePosture()\nwhen (devicePosture) {\n    is TableTopPosture -> TableTopLayout(foldingFeature = (devicePosture as TableTopPosture).hingePosition)\n    is BookPosture    -> BookLayout()\n    else              -> StandardLayout()\n}",
+      "template_ref": "templates/foldable/PostureDetector.kt",
+      "constraints": [
+        "collectAsStateWithLifecycle requires lifecycle-runtime-compose dep",
+        "Never collect in a raw coroutine scope without lifecycle — leaks on rotation",
+        "SeparatingPosture (STATE_FLAT + isSeparating=true) is dual-screen, not a half-folded device"
+      ],
+      "atomic_fix": null,
+      "success_count": 1,
+      "last_applied": "2026-05-28T00:00:00Z",
+      "contributor": "seed"
+    },
+    {
+      "id": "wear-module-isolation",
+      "category": "Wear",
+      "form_factors": ["wear"],
+      "detection_signals": ["androidx.wear.compose", "WearApp", "AppScaffold", "ScreenScaffold"],
+      "problem": "Wear OS code imports androidx.compose.material3 (mobile MaterialTheme) — incompatible with wear.compose.material3, causes runtime crash or invisible UI.",
+      "approach": [
+        "1. Move all Wear composables to a separate :wear Gradle module (com.android.application)",
+        "2. :wear uses ONLY wear.compose.material3 — never androidx.compose.material3",
+        "3. :app (mobile) must not import androidx.wear.compose.* — add a lint check",
+        "4. Shared data models go in :common module if needed",
+        "5. Add wearApp project(':wear') to :app build.gradle.kts"
+      ],
+      "code_sketch": "// wear/build.gradle.kts — correct\nimplementation(libs.wear.compose.material3)\nimplementation(libs.wear.compose.foundation)\n// WRONG — never add this to :wear:\n// implementation(libs.compose.material3)",
+      "template_ref": "templates/wear/WearAppScaffold.kt",
+      "constraints": [
+        "The two MaterialTheme implementations share no common base — mixing them crashes at runtime",
+        "TransformingLazyColumn replaces ScalingLazyColumn — use the newer API"
+      ],
+      "atomic_fix": null,
+      "success_count": 1,
+      "last_applied": "2026-05-28T00:00:00Z",
+      "contributor": "seed"
+    },
+    {
+      "id": "android-auto-template-model",
+      "category": "Auto",
+      "form_factors": ["auto"],
+      "detection_signals": ["CarAppService", "Screen", "onGetTemplate", "setContent {", "CarContext"],
+      "problem": "setContent{} called inside a Car App Screen subclass — Auto does not support Compose rendering inside Screen.",
+      "approach": [
+        "1. Remove setContent{} from Screen subclasses entirely",
+        "2. Override onGetTemplate(): Template and return a Template (ListTemplate, MessageTemplate, etc.)",
+        "3. Navigate via screenManager.push(NextScreen(carContext))",
+        "4. Driver distraction: max 6 items on minCarApiLevel 1-2, use ItemList.Builder",
+        "5. Add <meta-data android:name='androidx.car.app.minCarApiLevel' android:value='1'/> inside <service> in manifest"
+      ],
+      "code_sketch": "class MainScreen(carContext: CarContext) : Screen(carContext) {\n    override fun onGetTemplate(): Template {\n        val row = Row.Builder().setTitle(\"Item\").build()\n        val list = ItemList.Builder().addItem(row).build()\n        return ListTemplate.Builder()\n            .setTitle(\"App\")\n            .setSingleList(list)\n            .build()\n    }\n}",
+      "template_ref": "templates/auto/MainScreen.kt",
+      "constraints": [
+        "No Compose inside Screen — template model only, no exceptions",
+        "6 item limit on minCarApiLevel 1-2 is enforced by the car host at runtime",
+        "app-projected and app-automotive are separate Gradle artifacts — never both in same module"
+      ],
+      "atomic_fix": null,
+      "success_count": 1,
+      "last_applied": "2026-05-28T00:00:00Z",
+      "contributor": "seed"
+    },
+    {
+      "id": "text-overflow-ellipsis",
+      "category": "TextOverflow",
+      "form_factors": ["phone", "large-screen", "foldable", "wear"],
+      "detection_signals": ["Text(", "Text(text ="],
+      "problem": "Text() without maxLines/overflow clips silently on compact screens or wraps without bound on large ones.",
+      "approach": [
+        "1. Titles / labels (single-line): maxLines = 1, overflow = TextOverflow.Ellipsis",
+        "2. Body text: maxLines = 3 (or appropriate), overflow = TextOverflow.Ellipsis, softWrap = true (default)",
+        "3. Error/status messages: maxLines = 2, overflow = TextOverflow.Ellipsis",
+        "4. overflow only activates when text exceeds maxLines — always set both together"
+      ],
+      "code_sketch": "// Title\nText(text = title, maxLines = 1, overflow = TextOverflow.Ellipsis)\n// Body\nText(text = body, maxLines = 3, overflow = TextOverflow.Ellipsis)",
+      "template_ref": null,
+      "constraints": [
+        "TextOverflow.Clip is the default and silently truncates with no visual indicator — prefer Ellipsis",
+        "Setting overflow without maxLines has no effect — set both"
+      ],
+      "atomic_fix": "fix:text",
+      "success_count": 1,
+      "last_applied": "2026-05-28T00:00:00Z",
+      "contributor": "seed"
+    },
+    {
+      "id": "list-detail-pane-large-screen",
+      "category": "LargeScreen",
+      "form_factors": ["large-screen", "foldable"],
+      "detection_signals": ["ListDetailPaneScaffold", "NavigableListDetailPaneScaffold", "ThreePaneScaffoldNavigator"],
+      "problem": "Master-detail layout shows only single pane on tablets/foldables — list and detail should render side by side on expanded widths.",
+      "approach": [
+        "1. val navigator = rememberListDetailPaneScaffoldNavigator<ItemType>()",
+        "2. Wrap each pane in AnimatedPane { } — required for predictive back gesture",
+        "3. List pane click: navigator.navigateTo(ListDetailPaneScaffoldRole.Detail, selectedItem)",
+        "4. Detail pane reads: navigator.currentDestination?.contentKey",
+        "5. BackHandler(navigator.canNavigateBack()) { navigator.navigateBack() }",
+        "6. @file:OptIn(ExperimentalMaterial3AdaptiveApi::class) at file top"
+      ],
+      "code_sketch": "val navigator = rememberListDetailPaneScaffoldNavigator<MyItem>()\nBackHandler(navigator.canNavigateBack()) { navigator.navigateBack() }\nNavigableListDetailPaneScaffold(\n    navigator = navigator,\n    listPane = {\n        AnimatedPane {\n            ListContent(onItemClick = { item ->\n                navigator.navigateTo(ListDetailPaneScaffoldRole.Detail, item)\n            })\n        }\n    },\n    detailPane = {\n        AnimatedPane {\n            DetailContent(item = navigator.currentDestination?.contentKey)\n        }\n    }\n)",
+      "template_ref": "templates/tablet-large-screen/ListDetailScreen.kt",
+      "constraints": [
+        "AnimatedPane is mandatory for predictive back gesture — omitting breaks the transition animation",
+        "Navigator generic type must match the type passed to navigateTo()"
+      ],
+      "atomic_fix": null,
+      "success_count": 1,
+      "last_applied": "2026-05-28T00:00:00Z",
+      "contributor": "seed"
+    }
+  ]
+}
