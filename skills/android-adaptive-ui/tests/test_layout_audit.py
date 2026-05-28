@@ -109,5 +109,68 @@ class ScrollabilityXmlTests(unittest.TestCase):
         self.assertIn("problem_block", findings[0].message)
 
 
+class KotlinHeuristicNoiseTests(unittest.TestCase):
+    def test_text_overflow_ignores_comment_and_string_noise(self):
+        kt = """
+package com.example.ui
+import androidx.compose.runtime.Composable
+
+@Composable
+fun NoiseOnly() {
+    val debug = "Text(pretend)"
+    // Text(fake call in comment)
+}
+"""
+        with tempfile.TemporaryDirectory() as td:
+            kt_path = Path(td) / "NoiseOnly.kt"
+            kt_path.write_text(kt, encoding="utf-8")
+            result = layout_audit.run_audit([str(kt_path)])
+            findings = [f for f in result.findings if f.category == "TextOverflow"]
+
+        self.assertEqual(findings, [])
+
+    def test_scrollability_ignores_comment_and_string_noise(self):
+        kt = """
+package com.example.ui
+import androidx.compose.runtime.Composable
+
+@Composable
+fun ScrollNoiseOnly() {
+    val debug = "Column( Text( Text( Text( Text( Text( "
+    // Column(
+    // Text(
+    // Text(
+    // Text(
+    // Text(
+    // Text(
+}
+"""
+        with tempfile.TemporaryDirectory() as td:
+            kt_path = Path(td) / "ScrollNoiseOnly.kt"
+            kt_path.write_text(kt, encoding="utf-8")
+            result = layout_audit.run_audit([str(kt_path)])
+            findings = [f for f in result.findings if f.category == "Scrollability"]
+
+        self.assertEqual(findings, [])
+
+    def test_window_size_optin_accepts_fully_qualified_annotation(self):
+        kt = """
+package com.example.ui
+import androidx.compose.runtime.Composable
+import androidx.compose.material3.adaptive.navigation.NavigableListDetailPaneScaffold
+
+@OptIn(androidx.compose.material3.adaptive.ExperimentalMaterial3AdaptiveApi::class)
+@Composable
+fun Screen() {}
+"""
+        with tempfile.TemporaryDirectory() as td:
+            kt_path = Path(td) / "AdaptiveScreen.kt"
+            kt_path.write_text(kt, encoding="utf-8")
+            result = layout_audit.run_audit([str(kt_path)])
+            findings = [f for f in result.findings if f.category == "WindowSizeClass"]
+
+        self.assertEqual(findings, [])
+
+
 if __name__ == "__main__":
     unittest.main()

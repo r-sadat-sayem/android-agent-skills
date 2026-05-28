@@ -3,6 +3,7 @@
 package com.example.app.ui
 
 import android.os.Parcelable
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -52,6 +53,9 @@ private val SAMPLE_ITEMS = (1..20).map {
 @Composable
 fun ListDetailScreen() {
     val navigator = rememberListDetailPaneScaffoldNavigator<ContentItem>()
+    BackHandler(navigator.canNavigateBack()) {
+        navigator.navigateBack(BackNavigationBehavior.PopUntilScaffoldValueChange)
+    }
 
     NavigableListDetailPaneScaffold(
         navigator = navigator,

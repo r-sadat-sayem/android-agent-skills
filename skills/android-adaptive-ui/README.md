@@ -30,6 +30,7 @@ A Codex/Claude-compatible skill that audits and fixes Android UI code for every 
 
 | Capability | Details |
 |---|---|
+| **Compose + XML scope** | Compose/Kotlin is the primary target. XML is also audited for key issues (orientation lock, hardcoded dp, scroll ancestry), but XML fix templates are limited. |
 | **UI-only scan** | Header-scans files first (4 KB) — only reads files that contain `@Composable`, `@Preview`, Compose/Wear/Auto/Window imports, or are layout XML. Data classes, repos, and network layers are never read. |
 | **Targeted audit** | Single file, single directory, or mixed list of paths via `--src` |
 | **Memory cache** | JSON-LD knowledgebase (`.adaptive-ui-memory.json`) — unchanged clean files are skipped on subsequent runs |
@@ -69,6 +70,12 @@ ls -la ~/.codex/skills/android-adaptive-ui
 ls -la ~/.claude/skills/android-adaptive-ui
 ```
 
+One-line install via `curl` (published repo):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/r-sadat-sayem/android-agent-skills/main/scripts/bootstrap-install.sh | bash -s -- --repo https://github.com/r-sadat-sayem/android-agent-skills.git --skill android-adaptive-ui --target both
+```
+
 ---
 ## Claude Code CLI Usage
 
@@ -83,21 +90,35 @@ At session start Claude probes for companion skills and prints a one-line `COMPA
 
 ---
 
-### Full Audit
+### Scoped Audit (Recommended)
+
+Always scope your audit to a path, module, or feature package. This keeps token usage predictable and the findings table actionable.
+
+```
+> /android-adaptive-ui analyze_ui --src app/src/main/java/ui/
+> /android-adaptive-ui analyze_ui --src app/src/main/java/ui/HomeScreen.kt
+> /android-adaptive-ui analyze_ui --src feature/feed/src/main --module :feature:feed
+> /android-adaptive-ui analyze_ui --src app/src/main/java/ui/ app/src/main/res/layout/
+```
+
+Emits a compact scan card + findings table + before/after diff, then asks:
+```
+Apply all? [all / one-by-one / critical-only / skip]
+```
+
+**Split strategy for large projects:** run one module or feature package per session. Fixes are tracked in `.adaptive-ui-memory.json` so each run knows what was already resolved.
+
+---
+
+### Full Project Audit — ⚠ Not Recommended
 
 ```
 > /android-adaptive-ui analyze_ui
 ```
 
-Scans all UI files, emits a compact scan card + findings table + before/after diff, then asks:
-```
-Apply all? [all / one-by-one / critical-only / skip]
-```
-
-Audit a specific path instead of the whole project:
-```
-> /android-adaptive-ui analyze_ui --src app/src/main/java/ui/
-```
+> **Why not recommended:** Scans every `.kt` and `.xml` UI file from the project root. On a medium-sized project (300+ UI files) this loads a findings table too large to act on in a single session. Token cost is high and the "Apply all?" confirmation becomes impractical.
+>
+> **When acceptable:** Greenfield or very small projects with fewer than ~50 UI files, or when you want a one-shot inventory to triage before fixing in scoped sessions.
 
 ---
 
@@ -333,6 +354,16 @@ python scripts/layout_audit.py --src ./app/src/main --show-info
   run: |
     python ./skills/android-adaptive-ui/scripts/template_smoke_check.py
 
+- name: PSI audit (core Kotlin checks)
+  run: |
+    ./skills/android-adaptive-ui/scripts/layout_audit_psi.sh \
+      --src ./skills/android-adaptive-ui/templates \
+      --format json
+
+- name: Compile fixture projects (phone/large-screen/foldable/wear/auto)
+  run: |
+    ./skills/android-adaptive-ui/scripts/compile_fixture_projects.sh
+
 - name: Upload audit report
   uses: actions/upload-artifact@v4
   with:
@@ -360,6 +391,16 @@ Use this for quick post-fix verification without running the full audit. It chec
 - Manifest orientation locks
 - Adaptive API usage without `@OptIn(ExperimentalMaterial3AdaptiveApi::class)`
 
+### PSI audit (AST-backed, local/CI)
+
+```bash
+./skills/android-adaptive-ui/scripts/layout_audit_psi.sh \
+  --src ./app/src/main \
+  --format json
+```
+
+Use this path when you want lower-noise Kotlin checks (call-expression based) over regex heuristics.
+
 ### What the audit checks
 
 | Checker | What it catches |
@@ -371,11 +412,17 @@ Use this for quick post-fix verification without running the full audit. It chec
 | `FormFactorComplianceChecker` | Wear/mobile `MaterialTheme` cross-contamination; Compose in Auto `Screen`; `WindowInfoTracker` without lifecycle collection |
 | `TextOverflowChecker` | `Text()` without `overflow` or `maxLines` |
 
+PSI-backed core checks are also available via `scripts/layout_audit_psi.sh` (`tools/psi-audit/`), covering:
+- deprecated `calculateWindowSizeClass(...)`
+- adaptive API use without `@OptIn(...)` (including fully-qualified annotation form)
+- `Text()` overflow/maxLines omissions
+- `Column` scrollability signals
+
 ### What the audit does not check (yet)
 
 | Not checked | Detail |
 |---|---|
-| Full Kotlin AST semantics | Regex + heuristic based checks only. |
+| Full-project Kotlin AST coverage | PSI audit currently covers core Kotlin checks; XML and some heuristics remain regex-based. |
 | Runtime behavior | No emulator/device execution. |
 | View system fix generation | XML findings are reported, but templates are Compose-first. |
 | Compose compiler compatibility matrix | Assumes project uses compatible Compose/Kotlin versions. |
@@ -394,13 +441,15 @@ android-adaptive-ui/
 │
 ├── scripts/
 │   └── layout_audit.py                  ← Standalone audit script, no pip dependencies
+│   └── layout_audit_psi.sh              ← Kotlin PSI-backed audit wrapper
 │   └── template_smoke_check.py          ← Wear template compile-safety smoke checks
 │   └── validate_fixes.sh                ← Fast grep-based post-fix verifier
+│   └── compile_fixture_projects.sh      ← Builds all form-factor fixture projects
 │
 ├── templates/
 │   ├── phone/
 │   │   ├── AdaptiveScaffold.kt          ← NavigationSuiteScaffold + correct WindowSizeClass API
-│   │   └── BoxWithConstraintsGuard.kt   ← Safety net composable for unusual window sizes
+│   │   └── BoxWithConstraintsGuard.kt   ← Escape hatch for component-level edge cases only
 │   │
 │   ├── tablet-large-screen/
 │   │   ├── ListDetailScreen.kt          ← NavigableListDetailPaneScaffold (master-detail)
@@ -425,9 +474,15 @@ android-adaptive-ui/
 │   ├── form-factor-decision-guide.md    ← Signals -> recommendation -> complexity
 │   └── audit-rules.md                  ← Rule IDs + audit behavior changelog
 │
-└── gradle/
-    ├── libs.versions.toml.snippet       ← Paste-ready version catalog entries
-    └── build.gradle.snippet             ← Labeled KTS dependency blocks per form factor
+├── gradle/
+│   ├── libs.versions.toml.snippet       ← Paste-ready version catalog entries
+│   └── build.gradle.snippet             ← Labeled KTS dependency blocks per form factor
+│
+├── tools/
+│   └── psi-audit/                       ← Kotlin compiler PSI-based checker (Gradle project)
+│
+└── fixtures/
+    └── projects/                        ← Minimal compile fixtures: phone, large-screen, foldable, wear, auto
 ```
 
 ---
@@ -436,7 +491,7 @@ android-adaptive-ui/
 
 ### Phone / Compact
 - `NavigationSuiteScaffold` with automatic `BottomBar → Rail → Drawer` switching
-- `BoxWithConstraintsGuard` for min/max width guards and compact-height auto-scroll
+- `BoxWithConstraintsGuard` kept as an escape hatch only (not a primary adaptive strategy)
 
 ### Tablets & Large Screens
 - `NavigableListDetailPaneScaffold` for master-detail (`ListDetailScreen.kt`)
@@ -447,7 +502,7 @@ android-adaptive-ui/
 ### Foldables
 - `DevicePosture` sealed class: `NormalPosture`, `TableTopPosture`, `BookPosture`, `SeparatingPosture`
 - Hinge-aware `Spacer` sizing via `FoldingFeature.bounds`
-- Lifecycle-safe observation via `collectAsStateWithLifecycle`
+- Lifecycle-safe observation via `produceState`
 
 ### Wear OS
 - `TransformingLazyColumn` (replaces `ScalingLazyColumn`)
@@ -514,7 +569,7 @@ python ./skills/android-adaptive-ui/scripts/layout_audit.py \
 | **Compose-only templates** | All fix templates are Jetpack Compose. The audit script checks XML, but no View-based fix templates exist. |
 | **Android target only** | Templates import `androidx.*`. Compose Multiplatform (`org.jetbrains.compose.*`) is not covered. |
 | **KMP partial support** | Audit script doesn't understand KMP source set boundaries. Won't warn if Android-only API appears in `commonMain`. |
-| **Heuristic-based audit** | Regex + heuristics, not a full Kotlin AST. May produce false positives on unusual formatting. Use `--format json` to filter. |
+| **Mixed parser strategy** | Default audit is regex + heuristics. Use `layout_audit_psi.sh` for lower-noise Kotlin checks where precision matters. |
 | **No runtime testing** | Audits source files only — no emulator, no APK install, no runtime verification. |
 | **Companion skills optional** | Ecosystem integrations (graphify, intel, thread) enhance the workflow but are never required. |
 
@@ -554,7 +609,9 @@ EXPAND      /android-adaptive-ui add_form_factor <wear|auto|foldable|large-scree
             python scripts/layout_audit.py --src HomeScreen.kt
             python scripts/layout_audit.py --src ui/ res/layout/ --memory .adaptive-ui-memory.json
             python scripts/layout_audit.py --src ./app/src/main --format json
+            ./scripts/layout_audit_psi.sh --src ./app/src/main --format json
             ./scripts/validate_fixes.sh ./app/src/main
+            ./scripts/compile_fixture_projects.sh
 
 ── Templates ─────────────────────────────────────────────────
             templates/phone/AdaptiveScaffold.kt

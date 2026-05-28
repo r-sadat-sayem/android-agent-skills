@@ -6,7 +6,9 @@ Audit and fix Android UI code for all screen classes: phones, tablets, foldables
 
 **Commands:**
 ```
-analyze_ui                                   full audit
+analyze_ui --src <path>                      scoped audit (recommended)
+analyze_ui --src <path> --module <name>      single-module audit
+analyze_ui                                   full project audit (⚠ not recommended — see §4)
 apply_responsiveness [--track X] [--only Y]  targeted fix
 fix:deps | fix:optin | fix:nav | fix:critical atomic single-concern fixes
 add_form_factor <wear|auto|foldable|large-screen>
@@ -134,15 +136,45 @@ Memory updated · Todos created (2) · Graph synced
 
 ---
 
-## 4 — Workflow: `analyze_ui [--src <path>]`
+## 4 — Workflow: `analyze_ui`
+
+### Scoped audit — always prefer this
+
+```
+analyze_ui --src <path>
+analyze_ui --src <path> --module <module-name>
+```
+
+**Examples:**
+```
+analyze_ui --src app/src/main/java/ui/
+analyze_ui --src app/src/main/java/ui/HomeScreen.kt
+analyze_ui --src app/src/main/java/ui/ app/src/main/res/layout/
+analyze_ui --src feature/feed/src/main --module :feature:feed
+```
+
+Split large projects by feature module or UI package — run one at a time. This is the recommended approach for all real-world use.
+
+### Full project audit — ⚠ Not Recommended
+
+```
+analyze_ui
+```
+
+> **Why not recommended:** Scans every `.kt` and `.xml` file from the project root. On a medium-sized project (300+ UI files) this reads thousands of lines into context, producing a findings table too large to act on in a single session. Token cost is high and the "Apply all?" prompt becomes impractical.
+>
+> **When it is acceptable:** Greenfield projects with fewer than ~50 UI files, or when you specifically want a one-shot inventory to triage manually before fixing.
+
+### Steps (both modes)
 
 1. If `gsd-intel` active → read `.planning/intel/` first; note already-catalogued files.
-2. Infer project root from open file, or use `--src` path, or ask once.
-3. Run: `python scripts/layout_audit.py --src <root> --format json --memory <root>/.adaptive-ui-memory.json`
-4. Render using format in Section 3.
-5. If `gsd-note`/`gsd-add-todo` active → create one todo per CRITICAL finding now.
-6. If `gsd-graphify` active → sync findings to graph now.
-7. Prompt for confirmation before any code changes.
+2. For scoped: use `--src` path directly. For full: infer project root from open file, or ask once.
+3. Run: `python scripts/layout_audit.py --src <path> --format json --memory <root>/.adaptive-ui-memory.json`
+4. Run (lower-noise Kotlin path): `scripts/layout_audit_psi.sh --src <path> --format json`
+5. Render using format in Section 3.
+6. If `gsd-note`/`gsd-add-todo` active → create one todo per CRITICAL finding now.
+7. If `gsd-graphify` active → sync findings to graph now.
+8. Prompt for confirmation before any code changes.
 
 ---
 
@@ -227,6 +259,7 @@ Before starting, consult `references/form-factor-decision-guide.md` to validate 
 7. If `claude-md-management:revise-claude-md` active → call it now.
 8. Run scoped `analyze_ui --src <new files>` as final validation.
 9. Run `scripts/validate_fixes.sh <project-root>` as fast post-fix verification.
+10. Run `scripts/compile_fixture_projects.sh` when templates or dependency guidance change.
 
 ---
 
@@ -234,9 +267,9 @@ Before starting, consult `references/form-factor-decision-guide.md` to validate 
 
 | Track | Templates | Key constraint |
 |---|---|---|
-| Phone | `phone/AdaptiveScaffold.kt`, `phone/BoxWithConstraintsGuard.kt` | `currentWindowAdaptiveInfo()` once at root |
+| Phone | `phone/AdaptiveScaffold.kt` | `currentWindowAdaptiveInfo()` once at root (`BoxWithConstraintsGuard` is escape-hatch only) |
 | Large Screen | `tablet-large-screen/ListDetailScreen.kt`, `SupportingPaneScreen.kt` | All panes in `AnimatedPane {}` · needs `@OptIn` |
-| Foldable | `foldable/PostureDetector.kt`, `foldable/FoldAwareLayout.kt` | `collectAsStateWithLifecycle` — never raw coroutine |
+| Foldable | `foldable/PostureDetector.kt`, `foldable/FoldAwareLayout.kt` | `produceState` + `WindowInfoTracker` collection — no manual `State` wrappers |
 | Wear OS | `wear/WearAppScaffold.kt`, `wear/WearRoundSquareLayout.kt` | Separate `:wear` module — never mix `compose.material3` |
 | Android Auto | `auto/MyCarAppService.kt`, `auto/MainScreen.kt` | Template model only — no Compose, no `setContent {}` |
 | Density | `references/density-table.md` | Vectors in `drawable/`; bitmaps need mdpi + xxhdpi minimum |

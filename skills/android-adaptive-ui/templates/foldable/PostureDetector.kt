@@ -3,11 +3,12 @@ package com.example.app.ui.foldable
 import android.graphics.Rect
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.window.layout.FoldingFeature
 import androidx.window.layout.WindowInfoTracker
+import kotlinx.coroutines.flow.collectLatest
 
 // ─── Posture sealed class ──────────────────────────────────────────────────────
 
@@ -46,12 +47,11 @@ sealed class DevicePosture {
  * Returns a [State] that reflects the current device posture, updating automatically
  * when the fold state changes.
  *
- * Must be called inside a composable. Uses [collectAsStateWithLifecycle] to prevent
- * leaks when the composable leaves the composition.
+ * Must be called inside a composable. Uses [produceState] to keep collection
+ * lifecycle-aware and tied to composition.
  *
  * Gradle dependencies required:
  *   implementation("androidx.window:window:1.5.1")
- *   implementation("androidx.lifecycle:lifecycle-runtime-compose:2.9.0")
  */
 @Composable
 fun rememberDevicePosture(): State<DevicePosture> {
@@ -61,27 +61,23 @@ fun rememberDevicePosture(): State<DevicePosture> {
         WindowInfoTracker.getOrCreate(context)
     }
 
-    return windowInfoTracker
-        .windowLayoutInfo(context)
-        .collectAsStateWithLifecycle(
-            initialValue = androidx.window.layout.WindowLayoutInfo(emptyList()),
-        )
-        .let { layoutInfoState ->
-            // Map WindowLayoutInfo → DevicePosture
-            remember(layoutInfoState.value) {
-                val foldingFeature = layoutInfoState.value.displayFeatures
-                    .filterIsInstance<FoldingFeature>()
-                    .firstOrNull()
-                    ?: return@remember object : State<DevicePosture> {
-                        override val value: DevicePosture = DevicePosture.NormalPosture
-                    }
+    return produceState<DevicePosture>(
+        initialValue = DevicePosture.NormalPosture,
+        key1 = windowInfoTracker,
+        key2 = context,
+    ) {
+        windowInfoTracker.windowLayoutInfo(context).collectLatest { layoutInfo ->
+            val foldingFeature = layoutInfo.displayFeatures
+                .filterIsInstance<FoldingFeature>()
+                .firstOrNull()
 
-                val posture = mapFoldingFeatureToPosture(foldingFeature)
-                object : State<DevicePosture> {
-                    override val value: DevicePosture = posture
-                }
+            value = if (foldingFeature == null) {
+                DevicePosture.NormalPosture
+            } else {
+                mapFoldingFeatureToPosture(foldingFeature)
             }
         }
+    }
 }
 
 // ─── Mapping logic ────────────────────────────────────────────────────────────

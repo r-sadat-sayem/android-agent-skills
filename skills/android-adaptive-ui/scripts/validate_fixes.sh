@@ -25,7 +25,7 @@ echo "Target: $TARGET"
 
 echo
 printf "[1] Deprecated WindowSizeClass API... "
-if rg -n --pcre2 --glob '*.kt' --glob '!**/assets/**' '^(?!\s*//).*calculateWindowSizeClass\s*\(' "$TARGET" >/tmp/adaptive-ui-api-check.txt; then
+if rg -n --pcre2 --glob '*.kt' --glob '!**/assets/**' --glob '!**/tools/psi-audit/**' '^(?!\s*//).*calculateWindowSizeClass\s*\(' "$TARGET" >/tmp/adaptive-ui-api-check.txt; then
   echo "FAIL"
   cat /tmp/adaptive-ui-api-check.txt
   failures=$((failures + 1))
@@ -35,7 +35,7 @@ fi
 
 echo
 printf "[2] Legacy nav components (BottomNavigation/NavigationBar)... "
-if rg -n --pcre2 --glob '*.kt' --glob '!**/assets/**' '^(?!\s*//).*\b(BottomNavigation|NavigationBar)\s*\(' "$TARGET" >/tmp/adaptive-ui-nav-check.txt; then
+if rg -n --pcre2 --glob '*.kt' --glob '!**/assets/**' --glob '!**/tools/psi-audit/**' '^(?!\s*//).*\b(BottomNavigation|NavigationBar)\s*\(' "$TARGET" >/tmp/adaptive-ui-nav-check.txt; then
   echo "FAIL"
   cat /tmp/adaptive-ui-nav-check.txt
   failures=$((failures + 1))
@@ -64,7 +64,7 @@ while IFS= read -r file; do
     echo "$file"
     missing_optin=1
   fi
-done < <(rg -l --glob '*.kt' --glob '!**/assets/**' 'ListDetailPaneScaffold|SupportingPaneScaffold|NavigableListDetailPaneScaffold|NavigableSupportingPaneScaffold|AdaptiveNavigationSuite|currentWindowAdaptiveInfo\s*\(' "$TARGET")
+done < <(rg -l --glob '*.kt' --glob '!**/assets/**' --glob '!**/tools/psi-audit/**' 'ListDetailPaneScaffold|SupportingPaneScaffold|NavigableListDetailPaneScaffold|NavigableSupportingPaneScaffold|AdaptiveNavigationSuite|currentWindowAdaptiveInfo\s*\(' "$TARGET")
 
 if [[ $missing_optin -eq 0 ]]; then
   echo "PASS"
