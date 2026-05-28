@@ -1,0 +1,45 @@
+name: android-adaptive-ui quality
+
+on:
+  pull_request:
+    paths:
+      - 'skills/android-adaptive-ui/**'
+      - '.github/workflows/android-adaptive-ui-quality.yml'
+  push:
+    branches: [ main ]
+    paths:
+      - 'skills/android-adaptive-ui/**'
+      - '.github/workflows/android-adaptive-ui-quality.yml'
+
+jobs:
+  psi-audit-tool:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Build PSI audit tool
+        run: |
+          cd skills/android-adaptive-ui/tools/psi-audit
+          gradle --no-daemon build
+      - name: Run PSI audit tool on skill templates
+        run: |
+          ./skills/android-adaptive-ui/scripts/layout_audit_psi.sh \
+            --src ./skills/android-adaptive-ui/templates \
+            --format json
+
+  fixture-compilation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+      - uses: android-actions/setup-android@v3
+      - name: Compile form-factor fixture projects
+        run: ./skills/android-adaptive-ui/scripts/compile_fixture_projects.sh

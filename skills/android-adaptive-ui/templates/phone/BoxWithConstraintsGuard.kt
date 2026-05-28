@@ -16,12 +16,15 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
 /**
+ * Escape hatch utility — not a primary adaptive strategy.
+ *
  * Guards content against rendering below [minWidth] or above [maxWidth].
  *
  * Use when a composable has a known minimum usable width (e.g. a chart that breaks
  * below 280dp) or a maximum meaningful width (e.g. a form that looks odd beyond 600dp).
  *
- * For general window-size layout decisions, prefer WindowSizeClass breakpoints instead.
+ * For top-level adaptive layout decisions, always prefer WindowSizeClass first.
+ * Keep this only for component-level guardrails where measured constraints are required.
  */
 @Composable
 fun BoxWithConstraintsGuard(

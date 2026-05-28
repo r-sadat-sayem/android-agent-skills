@@ -1,6 +1,7 @@
 # Android Skills Repository
 
 This repository hosts installable AI coding skills (Codex/Claude compatible).
+Published repo: `https://github.com/r-sadat-sayem/android-agent-skills`
 
 ## Setup Guide
 
@@ -17,8 +18,8 @@ Optional:
 ### 2) Clone repository
 
 ```bash
-git clone <YOUR_GITHUB_REPO_URL>
-cd <repo-name>
+git clone https://github.com/r-sadat-sayem/android-agent-skills.git
+cd android-agent-skills
 ```
 
 ### 3) Verify available skills
@@ -32,7 +33,13 @@ cd <repo-name>
 Install one skill:
 
 ```bash
-./scripts/install-skill.sh --skill xml-to-compose-architect --target both
+./scripts/install-skill.sh --skill <skill-name> --target both
+```
+
+Example:
+
+```bash
+./scripts/install-skill.sh --skill android-adaptive-ui --target both
 ```
 
 Install all skills:
@@ -41,18 +48,26 @@ Install all skills:
 ./scripts/install-skill.sh --all --target both
 ```
 
-One-line install via `curl` (after publish):
+What `--target both` means:
+1. Installs to Codex (`~/.codex/skills`)
+2. Installs to Claude (`~/.claude/skills`)
+
+Other target values:
+1. `--target codex` installs only to Codex
+2. `--target claude` installs only to Claude
+
+One-line install via `curl`:
 
 Install one skill:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/<ORG>/<REPO>/main/scripts/bootstrap-install.sh | bash -s -- --repo https://github.com/<ORG>/<REPO>.git --skill xml-to-compose-architect --target both
+curl -fsSL https://raw.githubusercontent.com/r-sadat-sayem/android-agent-skills/main/scripts/bootstrap-install.sh | bash -s -- --repo https://github.com/r-sadat-sayem/android-agent-skills.git --skill <skill-name> --target both
 ```
 
 Install all skills:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/<ORG>/<REPO>/main/scripts/bootstrap-install.sh | bash -s -- --repo https://github.com/<ORG>/<REPO>.git --all --target both
+curl -fsSL https://raw.githubusercontent.com/r-sadat-sayem/android-agent-skills/main/scripts/bootstrap-install.sh | bash -s -- --repo https://github.com/r-sadat-sayem/android-agent-skills.git --all --target both
 ```
 
 Install mode options:
@@ -60,20 +75,20 @@ Install mode options:
 2. `link`: symlinks skill folders for live development.
 
 ```bash
-./scripts/install-skill.sh --skill xml-to-compose-architect --mode link
+./scripts/install-skill.sh --skill <skill-name> --mode link
 ```
 
 ### 5) Verify installation
 
 ```bash
-ls -la ~/.codex/skills/xml-to-compose-architect
-ls -la ~/.claude/skills/xml-to-compose-architect
+ls -la ~/.codex/skills/<skill-name>
+ls -la ~/.claude/skills/<skill-name>
 ```
 
 ### 6) Uninstall
 
 ```bash
-./scripts/uninstall-skill.sh --skill xml-to-compose-architect --target both
+./scripts/uninstall-skill.sh --skill <skill-name> --target both
 ./scripts/uninstall-skill.sh --all --target both
 ```
 
@@ -81,7 +96,7 @@ ls -la ~/.claude/skills/xml-to-compose-architect
 
 ```bash
 ./scripts/install-skill.sh \
-  --skill xml-to-compose-architect \
+  --skill <skill-name> \
   --codex-dir /custom/codex/skills \
   --claude-dir /custom/claude/skills
 ```
@@ -108,23 +123,17 @@ ls -la ~/.claude/skills/xml-to-compose-architect
 1. `xml-to-compose-architect`
 2. `android-adaptive-ui`
 
+Recommended first install:
+
+```bash
+./scripts/install-skill.sh --skill <skill-name> --target both
+```
+
 Default install targets:
 1. Codex: `~/.codex/skills`
 2. Claude: `~/.claude/skills`
 
-## Publish to GitHub
+## Skill Notes
 
-1. Create a new GitHub repository (for example: `android-skills`).
-2. Initialize and commit locally:
-```bash
-git init
-git add .
-git commit -m "feat: add multi-skill repository with xml-to-compose-architect skill"
-```
-3. Connect remote and push:
-```bash
-git branch -M main
-git remote add origin <YOUR_REPO_URL>
-git push -u origin main
-```
-4. Share usage docs from this README and per-skill README.
+1. Each skill has its own README under `skills/<skill-name>/README.md`.
+2. Feature scope differs by skill; check the per-skill README before use.

@@ -1,0 +1,10 @@
+<manifest package="com.example.fixture.auto" xmlns:android="http://schemas.android.com/apk/res/android">
+    <application android:label="auto-fixture">
+        <service android:name=".AutoService" android:exported="true">
+            <intent-filter>
+                <action android:name="androidx.car.app.CarAppService"/>
+            </intent-filter>
+            <meta-data android:name="androidx.car.app.minCarApiLevel" android:value="1"/>
+        </service>
+    </application>
+</manifest>

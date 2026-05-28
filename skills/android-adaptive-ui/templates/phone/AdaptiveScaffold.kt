@@ -55,6 +55,9 @@ fun AdaptiveApp() {
     // Call currentWindowAdaptiveInfo() ONCE at the composition root.
     // Pass windowSizeClass down as a plain parameter — do not re-call deep in the tree.
     val adaptiveInfo = currentWindowAdaptiveInfo()
+    // If your app targets desktop-class windows / Chromebooks, consider:
+    // val adaptiveInfo = currentWindowAdaptiveInfo(supportLargeAndXLargeWidth = true)
+    // and branch at WIDTH_DP_LARGE_LOWER_BOUND for L/XL-specific layouts.
     val windowSizeClass = adaptiveInfo.windowSizeClass
 
     var currentDestination by rememberSaveable { mutableStateOf<AppDestination>(AppDestination.Home) }
@@ -73,6 +76,10 @@ fun AdaptiveApp() {
     // } else {
     //     NavigationSuiteScaffoldDefaults.calculateFromAdaptiveInfo(adaptiveInfo)
     // }
+    // Example L/XL guard:
+    // val isLargeOrXL = windowSizeClass.isWidthAtLeastBreakpoint(
+    //     androidx.compose.material3.windowsizeclass.WIDTH_DP_LARGE_LOWER_BOUND
+    // )
 
     NavigationSuiteScaffold(
         layoutType = navType,

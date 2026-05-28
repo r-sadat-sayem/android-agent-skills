@@ -368,6 +368,28 @@ def read_lines(path: str) -> list[str]:
         return []
 
 
+_KT_BLOCK_COMMENT = re.compile(r'/\*.*?\*/', re.S)
+_KT_LINE_COMMENT = re.compile(r'//.*')
+_KT_TRIPLE_QUOTED = re.compile(r'"""(?:.|\n)*?"""', re.S)
+_KT_DOUBLE_QUOTED = re.compile(r'"(?:\\.|[^"\\])*"')
+
+
+def _mask_preserve_newlines(text: str) -> str:
+    return "".join("\n" if ch == "\n" else " " for ch in text)
+
+
+def _strip_kotlin_noise(content: str) -> str:
+    """
+    Mask comments and string literals while preserving line numbers.
+    This reduces false positives from textual matches in comments/strings.
+    """
+    content = _KT_TRIPLE_QUOTED.sub(lambda m: _mask_preserve_newlines(m.group(0)), content)
+    content = _KT_BLOCK_COMMENT.sub(lambda m: _mask_preserve_newlines(m.group(0)), content)
+    content = _KT_DOUBLE_QUOTED.sub(lambda m: _mask_preserve_newlines(m.group(0)), content)
+    content = _KT_LINE_COMMENT.sub(lambda m: _mask_preserve_newlines(m.group(0)), content)
+    return content
+
+
 # ─── Checker 1: Hardcoded dp values ──────────────────────────────────────────
 
 _DP_LITERAL_KT = re.compile(r'\b(\d+)\.dp\b')
@@ -390,7 +412,7 @@ class HardcodedDpChecker:
                         file=path, line=i,
                         message=f"Hardcoded {value}.dp may clip on small screens or waste space on large ones.",
                         fix=f"Extract to a named dimension: `val mySize = {value}.dp` or use WindowSizeClass.",
-                        template_ref="templates/phone/BoxWithConstraintsGuard.kt",
+                        template_ref="templates/phone/AdaptiveScaffold.kt",
                     ))
 
     def check_xml(self, path: str, lines: list[str], result: AuditResult) -> None:
@@ -410,15 +432,22 @@ class HardcodedDpChecker:
 
 _COLUMN_OPEN = re.compile(r'\bColumn\s*\(')
 _COLUMN_SCROLL = re.compile(r'\.verticalScroll\s*\(')
+_ITEM_CALL = re.compile(r'\bitem\s*\{')
+_TEXT_CALL = re.compile(r'\bText\s*\(')
+_BUTTON_CALL = re.compile(r'\bButton\s*\(')
 _ITEM_THRESHOLD = 5
 
 
 class ScrollabilityChecker:
     def check_kt(self, path: str, lines: list[str], result: AuditResult) -> None:
-        content = "".join(lines)
+        content = _strip_kotlin_noise("".join(lines))
         for pos in [m.start() for m in _COLUMN_OPEN.finditer(content)]:
             window = content[pos:pos + 600]
-            item_count = window.count("item {") + window.count("Text(") + window.count("Button(")
+            item_count = (
+                len(_ITEM_CALL.findall(window))
+                + len(_TEXT_CALL.findall(window))
+                + len(_BUTTON_CALL.findall(window))
+            )
             # Search the forward window: .verticalScroll appears inside the Column's modifier
             # argument or on the wrapping composable — never before the Column call site.
             has_scroll = bool(_COLUMN_SCROLL.search(window))
@@ -571,7 +600,10 @@ _MISSING_OPTIN = re.compile(
     r'ListDetailPaneScaffold|SupportingPaneScaffold'
     r'|NavigableListDetailPaneScaffold|NavigableSupportingPaneScaffold|AdaptiveNavigationSuite'
 )
-_HAS_OPTIN = re.compile(r'@file:OptIn\(ExperimentalMaterial3AdaptiveApi|@OptIn\(ExperimentalMaterial3AdaptiveApi')
+_HAS_OPTIN = re.compile(
+    r'@file:OptIn\([^)]*ExperimentalMaterial3AdaptiveApi::class'
+    r'|@OptIn\([^)]*ExperimentalMaterial3AdaptiveApi::class'
+)
 
 
 class WindowSizeClassApiChecker:
@@ -629,7 +661,7 @@ _TRANSFORMING_LAZY_COLUMN = re.compile(r'\bTransformingLazyColumn\b')
 _CAR_SCREEN_EXTENDS = re.compile(r'class\s+\w+\s*[:(]\s*Screen\s*\(')
 _COMPOSE_SET_CONTENT = re.compile(r'\bsetContent\s*\{')
 _WINDOW_INFO_TRACKER = re.compile(r'\bWindowInfoTracker\b')
-_COLLECT_STATE = re.compile(r'collectAsStateWithLifecycle|collectFoldingFeaturesAsState')
+_COLLECT_STATE = re.compile(r'collectAsStateWithLifecycle|collectFoldingFeaturesAsState|produceState')
 _MIN_CAR_API = re.compile(r'androidx\.car\.app\.minCarApiLevel')
 _CAR_IMPORT = re.compile(r'import\s+androidx\.car\.app\.')
 _BITMAP_DECODE = re.compile(r'BitmapFactory\.decodeResource\s*\(')
@@ -668,8 +700,8 @@ class FormFactorComplianceChecker:
             result.add(Finding(
                 severity="WARNING", category="Foldable",
                 file=path, line=1,
-                message="WindowInfoTracker without collectAsStateWithLifecycle — may leak on config change.",
-                fix="Use collectFoldingFeaturesAsState() or collectAsStateWithLifecycle().",
+                message="WindowInfoTracker without lifecycle-aware state collection — may leak on config change.",
+                fix="Use produceState, collectFoldingFeaturesAsState(), or collectAsStateWithLifecycle().",
                 template_ref="templates/foldable/PostureDetector.kt",
             ))
         for i, line in enumerate(lines, 1):
@@ -704,7 +736,8 @@ _HAS_MAX_LINES = re.compile(r'maxLines\s*=')
 
 class TextOverflowChecker:
     def check_kt(self, path: str, lines: list[str], result: AuditResult) -> None:
-        for i, line in enumerate(lines, 1):
+        stripped_lines = _strip_kotlin_noise("".join(lines)).splitlines(keepends=True)
+        for i, line in enumerate(stripped_lines, 1):
             if _TEXT_COMPOSABLE.search(line):
                 # Scan until the closing paren of the Text() call (up to 10 lines).
                 # A 4-line window misses maxLines/overflow on line 5+ in idiomatic
