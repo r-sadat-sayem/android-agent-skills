@@ -1,0 +1,14 @@
+{
+  "skills": [
+    {
+      "name": "xml-to-compose-architect",
+      "path": "skills/xml-to-compose-architect",
+      "description": "Architecture-first XML-to-Compose migration with strict guardrails and performance/state-hoisting checks."
+    },
+    {
+      "name": "android-adaptive-ui",
+      "path": "skills/android-adaptive-ui",
+      "description": "Adaptive UI audit and remediation for phone, tablet, foldable, Wear OS, and Android Auto."
+    }
+  ]
+}
