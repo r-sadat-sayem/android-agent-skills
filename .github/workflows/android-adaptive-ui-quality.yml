@@ -42,4 +42,4 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - uses: android-actions/setup-android@v3
       - name: Compile form-factor fixture projects
-        run: ./skills/android-adaptive-ui/scripts/compile_fixture_projects.sh
+        run: python -m unittest discover -s skills/android-adaptive-ui/tests -p 'test_*.py'
