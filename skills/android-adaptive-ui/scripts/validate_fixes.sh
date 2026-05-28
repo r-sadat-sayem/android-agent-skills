@@ -19,15 +19,22 @@ if ! command -v rg >/dev/null 2>&1; then
 fi
 
 failures=0
+tmp_api="$(mktemp)"
+tmp_nav="$(mktemp)"
+tmp_orientation="$(mktemp)"
+cleanup() {
+  rm -f "$tmp_api" "$tmp_nav" "$tmp_orientation"
+}
+trap cleanup EXIT
 
 echo "VALIDATE FIXES"
 echo "Target: $TARGET"
 
 echo
 printf "[1] Deprecated WindowSizeClass API... "
-if rg -n --pcre2 --glob '*.kt' --glob '!**/assets/**' --glob '!**/tools/psi-audit/**' '^(?!\s*//).*calculateWindowSizeClass\s*\(' "$TARGET" >/tmp/adaptive-ui-api-check.txt; then
+if rg -n --pcre2 --glob '*.kt' --glob '!**/assets/**' --glob '!**/tools/psi-audit/**' '^(?!\s*//).*calculateWindowSizeClass\s*\(' "$TARGET" >"$tmp_api"; then
   echo "FAIL"
-  cat /tmp/adaptive-ui-api-check.txt
+  cat "$tmp_api"
   failures=$((failures + 1))
 else
   echo "PASS"
@@ -35,9 +42,9 @@ fi
 
 echo
 printf "[2] Legacy nav components (BottomNavigation/NavigationBar)... "
-if rg -n --pcre2 --glob '*.kt' --glob '!**/assets/**' --glob '!**/tools/psi-audit/**' '^(?!\s*//).*\b(BottomNavigation|NavigationBar)\s*\(' "$TARGET" >/tmp/adaptive-ui-nav-check.txt; then
+if rg -n --pcre2 --glob '*.kt' --glob '!**/assets/**' --glob '!**/tools/psi-audit/**' '^(?!\s*//).*\b(BottomNavigation|NavigationBar)\s*\(' "$TARGET" >"$tmp_nav"; then
   echo "FAIL"
-  cat /tmp/adaptive-ui-nav-check.txt
+  cat "$tmp_nav"
   failures=$((failures + 1))
 else
   echo "PASS"
@@ -45,9 +52,9 @@ fi
 
 echo
 printf "[3] Manifest orientation locks... "
-if rg -n --glob '*.xml' 'android:screenOrientation\s*=\s*"(portrait|landscape|reverseLandscape|reversePortrait|sensorLandscape|sensorPortrait|userLandscape|userPortrait|locked)"' "$TARGET" >/tmp/adaptive-ui-orientation-check.txt; then
+if rg -n --glob '*.xml' 'android:screenOrientation\s*=\s*"(portrait|landscape|reverseLandscape|reversePortrait|sensorLandscape|sensorPortrait|userLandscape|userPortrait|locked)"' "$TARGET" >"$tmp_orientation"; then
   echo "FAIL"
-  cat /tmp/adaptive-ui-orientation-check.txt
+  cat "$tmp_orientation"
   failures=$((failures + 1))
 else
   echo "PASS"

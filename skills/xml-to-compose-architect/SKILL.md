@@ -1,3 +1,8 @@
+---
+name: "xml-to-compose-architect"
+description: "Migrate Android XML UI to Jetpack Compose with architecture-first guardrails, required clarifying questions, and phased implementation constraints."
+---
+
 # XML to Compose Architect Skill
 
 This skill is for migrating legacy Android XML UI to Jetpack Compose with strict guardrails.
@@ -130,4 +135,3 @@ Use `checklists/post-implementation-checklist.md` before finalizing.
 2. `templates/`: reusable output and code templates
 3. `assets/`: examples and optional starter snippets
 4. `scripts/`: optional automation and validation tooling
-
