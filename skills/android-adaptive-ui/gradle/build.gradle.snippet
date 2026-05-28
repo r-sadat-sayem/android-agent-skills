@@ -1,0 +1,58 @@
+// Paste-ready dependency blocks for android-adaptive-ui skill
+// Copy only the block(s) matching your active form factors
+// All blocks are Kotlin DSL (build.gradle.kts)
+
+
+// === FORM FACTOR: Phone / Baseline (all projects) ===
+// Add to: app/build.gradle.kts  →  dependencies { ... }
+dependencies {
+    implementation(platform(libs.compose.bom))
+    implementation(libs.compose.ui)
+    implementation(libs.compose.material3)
+    implementation(libs.compose.activity)
+    implementation(libs.material3.nav.suite)    // NavigationSuiteScaffold
+    debugImplementation(libs.compose.ui.tooling)
+    debugImplementation(libs.compose.ui.tooling.preview)
+}
+
+
+// === FORM FACTOR: Large Screen / Tablets ===
+// Add to: app/build.gradle.kts  →  dependencies { ... }
+// Requires @file:OptIn(ExperimentalMaterial3AdaptiveApi::class) in source files
+dependencies {
+    implementation(libs.adaptive)              // currentWindowAdaptiveInfo()
+    implementation(libs.adaptive.layout)       // ListDetailPaneScaffold, SupportingPaneScaffold
+    implementation(libs.adaptive.navigation)   // NavigableListDetailPaneScaffold
+}
+
+
+// === FORM FACTOR: Foldable ===
+// Add to: app/build.gradle.kts  →  dependencies { ... }
+dependencies {
+    implementation(libs.window.manager)           // FoldingFeature, WindowInfoTracker
+    implementation(libs.lifecycle.runtime.compose) // collectAsStateWithLifecycle
+    debugImplementation(libs.window.testing)       // FoldingFeature test builders
+}
+
+
+// === FORM FACTOR: Wear OS ===
+// Add to: wear/build.gradle.kts  →  dependencies { ... }
+// CRITICAL: Must be in a SEPARATE :wear module — never in the :app (mobile) module
+dependencies {
+    implementation(platform(libs.compose.bom))
+    implementation(libs.wear.compose.material3)    // MaterialTheme, Button, Text, etc.
+    implementation(libs.wear.compose.foundation)   // TransformingLazyColumn, AppScaffold
+    implementation(libs.wear.compose.navigation)   // SwipeDismissableNavHost
+    debugImplementation(libs.wear.compose.tooling) // @WearPreviewDevices
+}
+
+
+// === FORM FACTOR: Android Auto (phone-projected) ===
+// Add to: auto/build.gradle.kts  →  dependencies { ... }
+// Use car-app-automotive INSTEAD of car-app-projected for Automotive OS
+dependencies {
+    implementation(libs.car.app)                   // CarAppService, Session, Screen
+    implementation(libs.car.app.projected)         // Android Auto (DHU testing)
+    // implementation(libs.car.app.automotive)     // Uncomment for Automotive OS only
+    androidTestImplementation(libs.car.app.testing)
+}

@@ -106,6 +106,7 @@ ls -la ~/.claude/skills/xml-to-compose-architect
 ## Available skills
 
 1. `xml-to-compose-architect`
+2. `android-adaptive-ui`
 
 Default install targets:
 1. Codex: `~/.codex/skills`
