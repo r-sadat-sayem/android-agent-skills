@@ -362,9 +362,11 @@ python scripts/layout_audit.py --src ./app/src/main --show-info
       --src ./skills/android-adaptive-ui/templates \
       --format json
 
-- name: Compile fixture projects (phone/large-screen/foldable/wear/auto)
+- name: Verify target project build (project-local)
   run: |
-    ./skills/android-adaptive-ui/scripts/compile_fixture_projects.sh
+    ./skills/android-adaptive-ui/scripts/verify_project_build.sh \
+      --project-dir . \
+      --module app
 
 - name: Upload audit report
   uses: actions/upload-artifact@v4
@@ -446,7 +448,7 @@ android-adaptive-ui/
 │   └── layout_audit_psi.sh              ← Kotlin PSI-backed audit wrapper
 │   └── template_smoke_check.py          ← Wear template compile-safety smoke checks
 │   └── validate_fixes.sh                ← Fast grep-based post-fix verifier
-│   └── compile_fixture_projects.sh      ← Builds all form-factor fixture projects
+│   └── verify_project_build.sh          ← Verifies target project build using its own Gradle config
 │
 ├── templates/
 │   ├── phone/
@@ -480,11 +482,8 @@ android-adaptive-ui/
 │   ├── libs.versions.toml.snippet       ← Paste-ready version catalog entries
 │   └── build.gradle.snippet             ← Labeled KTS dependency blocks per form factor
 │
-├── tools/
-│   └── psi-audit/                       ← Kotlin compiler PSI-based checker (Gradle project)
-│
-└── fixtures/
-    └── projects/                        ← Minimal compile fixtures: phone, large-screen, foldable, wear, auto
+└── tools/
+    └── psi-audit/                       ← Kotlin compiler PSI-based checker (Gradle project)
 ```
 
 ---
@@ -613,7 +612,7 @@ EXPAND      /android-adaptive-ui add_form_factor <wear|auto|foldable|large-scree
             python scripts/layout_audit.py --src ./app/src/main --format json
             ./scripts/layout_audit_psi.sh --src ./app/src/main --format json
             ./scripts/validate_fixes.sh ./app/src/main
-            ./scripts/compile_fixture_projects.sh
+            ./scripts/verify_project_build.sh --project-dir . --module app
 
 ── Templates ─────────────────────────────────────────────────
             templates/phone/AdaptiveScaffold.kt

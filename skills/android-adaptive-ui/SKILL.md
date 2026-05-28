@@ -264,7 +264,7 @@ Before starting, consult `references/form-factor-decision-guide.md` to validate 
 7. If `claude-md-management:revise-claude-md` active → call it now.
 8. Run scoped `analyze_ui --src <new files>` as final validation.
 9. Run `scripts/validate_fixes.sh <project-root>` as fast post-fix verification.
-10. Run `scripts/compile_fixture_projects.sh` when templates or dependency guidance change.
+10. Run `scripts/verify_project_build.sh --project-dir <project-root> --module app` as final project-local verification.
 
 ---
 
