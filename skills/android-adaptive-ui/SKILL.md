@@ -1,11 +1,11 @@
 ---
 name: "android-adaptive-ui"
-description: "Audit and fix Android UI code across phones, tablets, foldables, Wear OS, and Android Auto, with form-factor detection, targeted responsiveness fixes, and structured reporting."
+description: "Audit, fix, generate, and preview Android UI code across phones, tablets, foldables, Wear OS, and Android Auto — with sketch analysis, UX pattern generation, localhost feedback preview, and structured reporting."
 ---
 
 # Android Adaptive UI Architect
 
-Audit and fix Android UI code for all screen classes: phones, tablets, foldables, Wear OS, Android Auto.
+Audit, fix, generate, and preview Android UI code for all screen classes: phones, tablets, foldables, Wear OS, Android Auto.
 
 **Baseline:** Compose BOM 2026.04.01 · Kotlin 2.3.10 · Material3 Adaptive 1.2.0 · WindowManager 1.5.1
 
@@ -16,7 +16,16 @@ analyze_ui --src <path> --module <name>      single-module audit
 analyze_ui                                   full project audit (⚠ not recommended — see §4)
 apply_responsiveness [--track X] [--only Y]  targeted fix
 fix:deps | fix:optin | fix:nav | fix:critical atomic single-concern fixes
+fix:content-density                          replace hardcoded column counts with adaptive grids
 add_form_factor <wear|auto|foldable|large-screen>
+analyze_sketch --img <path>                  analyze a UI screenshot or sketch (vision)
+analyze_sketch --img <path> --target <ff>    generate adaptive version for target form factor
+generate_layout --prd <path>                 generate adaptive scaffold from a PRD/spec file
+generate_layout --from-sketch               use last analyze_sketch result
+generate_layout --pattern <id>              generate from a named playbook pattern
+ux_preview [--src <path>] [--port 8080]     localhost feedback page for scanned path
+ux_preview --pattern <id>                   preview a named playbook pattern
+ux_preview --from-sketch                    preview last analyze_sketch result
 ```
 
 ---
@@ -37,6 +46,7 @@ Run this BEFORE any workflow. Check the available skills list in your current se
 | `claude-md-management:revise-claude-md` | **Doc sync** — after any `add_form_factor`, update CLAUDE.md with new patterns |
 | `android-adaptive-ui` memory file | **Primary store** — `.adaptive-ui-memory.json` JSON-LD; always write here regardless of other skills |
 | `solutions-playbook.json` | **Pattern cache** — read `references/solutions-playbook.json` at session start; skip re-reasoning on known patterns |
+| `ux-patterns.md` | **UX rules** — read `references/ux-patterns.md` for content discovery feed, nav rail, hero, and grid composition rules used by `analyze_sketch`, `generate_layout`, and `ux_preview` |
 
 **Probe output (emit once at session start):**
 ```
@@ -44,11 +54,13 @@ COMPANIONS ───────────────────────
 Active: gsd-graphify · gsd-intel · gsd-thread
 Inactive (not installed): gsd-scan · gsd-debug
 Memory: .adaptive-ui-memory.json
-Playbook: 9 patterns loaded (references/solutions-playbook.json)
+Playbook: 13 patterns loaded (references/solutions-playbook.json)
+UX Patterns: references/ux-patterns.md
 ```
 
 **Playbook usage rules:**
 - At session start, read `references/solutions-playbook.json` and index patterns by `detection_signals`.
+- Also read `references/ux-patterns.md` — these rules govern `analyze_sketch`, `generate_layout`, and `ux_preview`.
 - Before writing any fix: check if `detection_signals` of the current finding match a playbook entry. If yes, use `approach` and `code_sketch` directly — do NOT re-reason from scratch.
 - After successfully applying a fix: increment `success_count` on the matched pattern and update `last_applied` timestamp in the local playbook.
 - After any new pattern is discovered and proven: append it to the local playbook using the schema below.
@@ -123,7 +135,7 @@ HomeScreen.kt:42      calculateWindowSizeClass()       currentWindowAdaptiveInfo
 SettingsScreen.kt:18  Column { … }                     Column + .verticalScroll(…)   ADD
 
 PENDING: <X> CRITICAL · <Y> WARNING · <Z> INFO
-Apply all? [all / one-by-one / critical-only / skip]
+Apply all? [all / one-by-one / critical-only / skip / ux_preview]
 ```
 
 Rules:
@@ -183,6 +195,125 @@ analyze_ui
 
 ---
 
+## 4a — Workflow: `analyze_sketch --img <path>`
+
+Analyze a UI screenshot or design sketch using vision. Outputs findings in the same format as `analyze_ui`.
+
+```
+analyze_sketch --img <path>
+analyze_sketch --img <path> --target <form-factor>
+```
+
+### Detection Steps (run in this order)
+
+1. **Navigation pattern** — bottom bar? rail? drawer? none?
+2. **Content pattern** — map visual elements using `references/ux-patterns.md` Content Detection table:
+   - Circular items in a row → Quick Access row
+   - Square cards in a row/grid → Discovery grid
+   - Large rectangular banner → Hero content
+   - Text list with thumbnails → Content feed
+3. **Layout pattern** — single column? multi-column? split pane?
+4. **Device classification** — infer from navigation + density + proportions
+5. **Match detected patterns** against playbook `detection_signals`
+
+### Output (same FINDINGS format as §3)
+
+```
+SKETCH ANALYSIS ────────────────────────────────────
+Source        : <path>
+Detected form : Phone (inferred from bottom navigation bar)
+Patterns found: 3
+
+FINDINGS ───────────────────────────────────────────
+#  SEV      COMPONENT         PATTERN DETECTED
+1  WARNING  NavigationBar     Bottom nav — will not adapt on tablet (navigation-rail-migration)
+2  WARNING  ContentGrid       GridCells.Fixed(2) inferred — use GridCells.Adaptive (discovery-grid-responsive)
+3  INFO     HeroBanner        Hero content present — verify single above-fold rule (hero-content-pattern)
+
+Generate adaptive version? [yes / ux_preview / skip]
+```
+
+If `--target <form-factor>` is set, skip the prompt and call `generate_layout --from-sketch` automatically.
+
+---
+
+## 4b — Workflow: `generate_layout`
+
+Generate adaptive Kotlin scaffold code from a PRD, sketch analysis, or named playbook pattern.
+
+```
+generate_layout --prd <path>
+generate_layout --from-sketch
+generate_layout --pattern <id>
+```
+
+### Steps
+
+1. **Source input:**
+   - `--prd <path>` → read the PRD file; extract: navigation type, content sections, form factors, responsive rules
+   - `--from-sketch` → use findings from the last `analyze_sketch` session
+   - `--pattern <id>` → load the named entry from `references/solutions-playbook.json`
+2. Read `references/ux-patterns.md` for composition rules relevant to detected content type
+3. Select template(s) from `templates/` as the backbone (see §8 Form Factor Reference)
+4. Show BEFORE→AFTER diff of what will be created — never paste full file contents, show diffs only
+5. Wait for confirmation before writing any files
+6. After confirmation: write scaffold files, run `fix:optin` + `fix:deps` as post-checks
+7. Run scoped `analyze_ui --src <new files>` as final validation
+
+### PRD Extraction Rules
+
+When reading a PRD:
+
+| PRD signal | Maps to |
+|---|---|
+| "Bottom Navigation" / tabs | `NavigationSuiteScaffold` |
+| "Navigation Rail" | `NavigationSuiteScaffold` at Medium+ width |
+| "Multi-column" / "grid" | `GridCells.Adaptive(minSize = 150.dp)` |
+| "Hero" / "Featured" / "Continue Listening" | Hero content pattern, `widthIn(max = 800.dp)` on tablet |
+| "Horizontal scroll row" | `LazyRow` with `horizontalArrangement = Arrangement.spacedBy(8.dp)` |
+| "Single column vertical scroll" | `LazyColumn` with `NavigationSuiteScaffold` |
+
+---
+
+## 4c — Workflow: `ux_preview`
+
+Launch a localhost webpage showing adaptive UX options and collecting user feedback.
+
+```
+ux_preview [--src <path>] [--port 8080]
+ux_preview --pattern <id>
+ux_preview --from-sketch
+```
+
+### Steps
+
+1. Determine pattern set:
+   - `--src` → run `analyze_ui --src <path>` silently first, take all WARNING+ findings → map each to a playbook pattern
+   - `--pattern <id>` → load single named pattern
+   - `--from-sketch` → use patterns from last `analyze_sketch`
+2. Run: `python scripts/ux_preview_server.py [--src <path>] [--pattern <id>] [--port 8080]`
+3. Report URL to user: `UX Preview → http://localhost:8080`
+4. Server stays alive until user presses Enter
+5. After server stops, read `ux_preview_output/feedback.json` and summarize votes:
+
+```
+FEEDBACK SUMMARY ────────────────────────────────────
+navigation-suite-scaffold-migration   +3 / -0   ✓ helpful
+discovery-grid-responsive             +1 / -1
+hero-content-pattern                  +0 / -2   ✗ not helpful
+```
+
+6. For any pattern voted down: offer `generate_layout --pattern <alt-id>` with the next-best alternative
+
+### What the page shows
+
+- **Device tabs** (Phone / Tablet / Foldable) — filter cards by form factor
+- **Pattern cards** — one per finding, each with: pattern name · category · problem statement · code snippet · pros/cons · approach steps · thumbs feedback buttons
+- **Feedback** — POST to `/feedback` endpoint, appended to `ux_preview_output/feedback.json`
+- **Zero external deps** — pure stdlib Python, single-file HTML output
+
+---
+
 ## 5 — Workflow: `apply_responsiveness [--track X] [--only Y]`
 
 Without flags: runs all tracks, all concerns. Heavy — use flags to scope.
@@ -235,6 +366,7 @@ These run a single targeted concern without a prior audit. Fastest option for kn
 | `fix:critical` | Re-read last audit from `.adaptive-ui-memory.json`, apply all open CRITICAL items |
 | `fix:scroll` | Find `Column {` blocks with ≥5 children and no scroll modifier, add `.verticalScroll` |
 | `fix:orientation` | Find `android:screenOrientation` locks in manifest, remove or set to `unspecified` |
+| `fix:content-density` | Find `GridCells.Fixed(` with hardcoded column counts, replace with `GridCells.Adaptive(minSize = 150.dp)` |
 
 **Output format for atomic fixes:**
 ```
@@ -278,8 +410,9 @@ Before starting, consult `references/form-factor-decision-guide.md` to validate 
 | Wear OS | `wear/WearAppScaffold.kt`, `wear/WearRoundSquareLayout.kt` | Separate `:wear` module — never mix `compose.material3` |
 | Android Auto | `auto/MyCarAppService.kt`, `auto/MainScreen.kt` | Template model only — no Compose, no `setContent {}` |
 | Density | `references/density-table.md` | Vectors in `drawable/`; bitmaps need mdpi + xxhdpi minimum |
+| Desktop / Chromebook | `references/ux-patterns.md` (Discovery Grid, Content Discovery Feed) | Rail → PermanentNavigationDrawer at Expanded; grid 6+ columns; no screen orientation lock |
 
-Breakpoints → `references/breakpoints.md` · Dependencies → `references/dependencies.md` · Decision guide → `references/form-factor-decision-guide.md`
+Breakpoints → `references/breakpoints.md` · Dependencies → `references/dependencies.md` · Decision guide → `references/form-factor-decision-guide.md` · UX Patterns → `references/ux-patterns.md`
 
 ---
 
@@ -293,3 +426,6 @@ Breakpoints → `references/breakpoints.md` · Dependencies → `references/depe
 6. `calculateWindowSizeClass(activity)` is deprecated — always replace with `currentWindowAdaptiveInfo().windowSizeClass`.
 7. Auto item limit: 6 items max on `minCarApiLevel` 1-2. Suggest pagination, not ignoring the limit.
 8. Never block a workflow because a companion skill is absent. Degrade gracefully to memory-file-only mode.
+9. `GridCells.Fixed(2)` hardcoded in production is a WARNING — always flag and offer `fix:content-density`.
+10. Maximum one hero-weight card above the fold — flag additional heroes as WARNING.
+11. Never show `NavigationBar` and `NavigationRail` simultaneously — `NavigationSuiteScaffold` is the only correct way to handle both.

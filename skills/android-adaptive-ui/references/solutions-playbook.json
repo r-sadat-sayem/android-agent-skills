@@ -219,6 +219,109 @@
       "success_count": 1,
       "last_applied": "2026-05-28T00:00:00Z",
       "contributor": "seed"
+    },
+    {
+      "id": "content-discovery-feed",
+      "category": "LargeScreen",
+      "form_factors": ["phone", "large-screen", "foldable"],
+      "detection_signals": ["Quick Access", "Discovery Cards", "Featured Content", "Recently Played", "LazyColumn", "ContentFeed", "HomeScreen"],
+      "problem": "Home feed uses a fixed single-column layout that does not adapt to tablet widths — content stays phone-density on large screens.",
+      "approach": [
+        "1. Structure feed as: Header → Quick Access Row → Discovery Grid → Hero Card → Content Feed → (Navigation handled by NavigationSuiteScaffold)",
+        "2. Quick Access: HorizontalScrollRow with circular/square items — phone and tablet share the same component",
+        "3. Discovery Grid: replace hardcoded 2-column grid with LazyVerticalGrid(GridCells.Adaptive(minSize = 150.dp))",
+        "4. Hero Card: cap max width at 800.dp on tablet to avoid oversized banner — use Modifier.widthIn(max = 800.dp).align(Alignment.CenterHorizontally)",
+        "5. Navigation: wrap entire screen in NavigationSuiteScaffold — bottom bar auto-promotes to rail at Medium width",
+        "6. Search: expose search bar in content area on tablet (not collapsed in bottom tab)"
+      ],
+      "code_sketch": "NavigationSuiteScaffold(navigationSuiteItems = { /* tabs */ }) {\n    LazyColumn(modifier = Modifier.fillMaxSize()) {\n        item { QuickAccessRow(items = quickItems) }\n        item {\n            LazyVerticalGrid(\n                columns = GridCells.Adaptive(minSize = 150.dp),\n                modifier = Modifier.height(gridHeight)\n            ) { items(discoveryItems, key = { it.id }) { DiscoveryCard(it) } }\n        }\n        item { HeroCard(modifier = Modifier.widthIn(max = 800.dp)) }\n        items(feedItems, key = { it.id }) { FeedRow(it) }\n    }\n}",
+      "template_ref": "templates/phone/AdaptiveScaffold.kt",
+      "constraints": [
+        "Never nest LazyVerticalGrid inside LazyColumn without a fixed height on the grid — causes unbounded height crash",
+        "Do not stretch a single phone-width column to full tablet width — increase column count instead",
+        "NavigationSuiteScaffold must be the outermost scaffold — never nest inside Scaffold's bottomBar slot"
+      ],
+      "atomic_fix": null,
+      "success_count": 1,
+      "last_applied": "2026-06-09T00:00:00Z",
+      "contributor": "seed"
+    },
+    {
+      "id": "navigation-rail-migration",
+      "category": "Navigation",
+      "form_factors": ["large-screen", "foldable"],
+      "detection_signals": ["NavigationRail", "NavigationBar", "BottomNavigation", "bottom nav", "rail", "NavigationDrawer"],
+      "problem": "App uses NavigationBar (bottom bar) on all screen sizes — tablets and foldable expanded state need a persistent NavigationRail or NavigationDrawer.",
+      "approach": [
+        "1. Replace NavigationBar { } with NavigationSuiteScaffold — it handles Compact→Rail→Drawer automatically",
+        "2. On Compact: renders NavigationBar (bottom)",
+        "3. On Medium: renders NavigationRail (left side, icons + optional labels)",
+        "4. On Expanded: renders PermanentNavigationDrawer (full left panel)",
+        "5. Destination count: 3–7 items — fewer = no need for nav component; more = use drawer with sections",
+        "6. Never show both NavigationBar and NavigationRail simultaneously — NavigationSuiteScaffold enforces this"
+      ],
+      "code_sketch": "NavigationSuiteScaffold(\n    navigationSuiteItems = {\n        TopLevelDestination.entries.forEach { dest ->\n            item(\n                selected = currentDest == dest,\n                onClick = { currentDest = dest },\n                icon = { Icon(dest.icon, contentDescription = dest.label) },\n                label = { Text(dest.label) }\n            )\n        }\n    }\n) { /* screen content */ }",
+      "template_ref": "templates/phone/AdaptiveScaffold.kt",
+      "constraints": [
+        "NavigationSuiteScaffold replaces Scaffold — do not wrap it inside another Scaffold",
+        "Requires material3-adaptive-navigation-suite Gradle dependency",
+        "3-destination minimum — single destination has no navigation component"
+      ],
+      "atomic_fix": "fix:nav",
+      "success_count": 1,
+      "last_applied": "2026-06-09T00:00:00Z",
+      "contributor": "seed"
+    },
+    {
+      "id": "hero-content-pattern",
+      "category": "LargeScreen",
+      "form_factors": ["phone", "large-screen"],
+      "detection_signals": ["FeaturedPlaylist", "ContinueListening", "HeroBanner", "FeaturedContent", "EditorialCard", "hero", "banner"],
+      "problem": "Hero content card stretches to full screen width on tablets — becomes oversized and visually unbalanced; or there are multiple hero-sized elements above the fold which dilutes visual hierarchy.",
+      "approach": [
+        "1. Single hero rule: ensure exactly one hero-weight card per screen above the fold",
+        "2. Phone: full-width hero is correct — no change needed",
+        "3. Tablet: apply Modifier.widthIn(max = 800.dp).align(Alignment.CenterHorizontally) to hero card",
+        "4. Alternatively, place hero as first item in a 2-column grid at Expanded width alongside secondary content",
+        "5. Aspect ratio: maintain 16:9 or 3:2 — do not let the card grow to fill arbitrary height",
+        "6. Hero should scroll with the feed — never make it sticky"
+      ],
+      "code_sketch": "// Phone: full width\nHeroCard(modifier = Modifier.fillMaxWidth())\n\n// Tablet: capped width, centered\nBox(modifier = Modifier.fillMaxWidth()) {\n    HeroCard(\n        modifier = Modifier\n            .widthIn(max = 800.dp)\n            .align(Alignment.Center)\n    )\n}",
+      "template_ref": null,
+      "constraints": [
+        "Never use fillMaxWidth on hero card without a widthIn(max) cap on Expanded screens",
+        "Maximum one hero section above the fold — two heroes compete and lose both",
+        "Hero must not be pinned/sticky — it belongs in the scrolling feed"
+      ],
+      "atomic_fix": null,
+      "success_count": 1,
+      "last_applied": "2026-06-09T00:00:00Z",
+      "contributor": "seed"
+    },
+    {
+      "id": "discovery-grid-responsive",
+      "category": "LargeScreen",
+      "form_factors": ["phone", "large-screen", "foldable"],
+      "detection_signals": ["LazyVerticalGrid", "GridCells.Fixed", "columns = 2", "GridCells.Adaptive", "DiscoveryGrid", "AlbumGrid", "PlaylistGrid"],
+      "problem": "Grid uses GridCells.Fixed(2) — always shows 2 columns regardless of screen width, wasting space on tablets and giving oversized cards on large screens.",
+      "approach": [
+        "1. Replace GridCells.Fixed(N) with GridCells.Adaptive(minSize = Xdp) — system picks column count automatically",
+        "2. minSize guide: album art / media cards → 150.dp; smaller chips → 100.dp; wide info cards → 200.dp",
+        "3. Result: phone portrait = 2 cols, tablet = 3-6 cols, large tablet = 6+ cols — no manual breakpoint code",
+        "4. If exact column counts are required by design: use WindowSizeClass to switch between Fixed(2), Fixed(3), Fixed(4)",
+        "5. Add contentPadding and arrangement spacing for visual breathing room"
+      ],
+      "code_sketch": "// Preferred: fully adaptive\nLazyVerticalGrid(\n    columns = GridCells.Adaptive(minSize = 150.dp),\n    contentPadding = PaddingValues(16.dp),\n    horizontalArrangement = Arrangement.spacedBy(8.dp),\n    verticalArrangement = Arrangement.spacedBy(8.dp),\n) { items(list, key = { it.id }) { GridCard(it) } }\n\n// Alternative: explicit per breakpoint\nval cols = if (windowSizeClass.isWidthAtLeastBreakpoint(WIDTH_DP_EXPANDED_LOWER_BOUND)) 4 else 2\nLazyVerticalGrid(columns = GridCells.Fixed(cols)) { ... }",
+      "template_ref": null,
+      "constraints": [
+        "GridCells.Fixed(2) hardcoded in production is a WARNING finding — always flag it",
+        "Never nest LazyVerticalGrid inside LazyColumn without a fixed Modifier.height() on the grid",
+        "Adaptive minSize should match the natural minimum readable size of the card content, not an arbitrary dp"
+      ],
+      "atomic_fix": "fix:content-density",
+      "success_count": 1,
+      "last_applied": "2026-06-09T00:00:00Z",
+      "contributor": "seed"
     }
   ]
 }

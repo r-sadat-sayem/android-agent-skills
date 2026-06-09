@@ -1,8 +1,8 @@
 # Android Adaptive UI Skill
 
-A Codex/Claude-compatible skill that audits and fixes Android UI code for every screen class: phones, tablets, foldables, Wear OS, and Android Auto.
+A Codex/Claude-compatible skill that audits, fixes, generates, and previews Android UI code for every screen class: phones, tablets, foldables, Wear OS, and Android Auto.
 
-**Baseline:** Jetpack Compose · BOM 2026.04.01 · Kotlin 2.3.10 · Material3 Adaptive 1.2.0
+**Baseline:** Jetpack Compose · BOM 2026.04.01 · Kotlin 2.3.10 · Material3 Adaptive 1.2.0 · Version 1.1.0
 
 ---
 
@@ -10,10 +10,15 @@ A Codex/Claude-compatible skill that audits and fixes Android UI code for every 
 
 - [What This Skill Does](#what-this-skill-does)
 - [Installation](#installation)
+- [Updating](#updating)
+- [Testing: Phone → Tablet Migration](#testing-phone--tablet-migration)
 - [Claude Code CLI Usage](#claude-code-cli-usage)
-  - [Full Audit](#full-audit)
+  - [Scoped Audit](#scoped-audit-recommended)
   - [Targeted Fix — `apply_responsiveness` Flags](#targeted-fix--apply_responsiveness-flags)
   - [Atomic Sub-commands](#atomic-sub-commands)
+  - [UX Preview Server](#ux-preview-server)
+  - [Sketch Analysis](#sketch-analysis)
+  - [Generate Layout from PRD](#generate-layout-from-prd)
   - [Add a Form Factor](#add-a-form-factor)
   - [Running the Audit Script Directly](#running-the-audit-script-directly)
 - [Skill Ecosystem Integration](#skill-ecosystem-integration)
@@ -77,6 +82,95 @@ curl -fsSL https://raw.githubusercontent.com/r-sadat-sayem/android-agent-skills/
 less /tmp/bootstrap-install.sh
 bash /tmp/bootstrap-install.sh --repo https://github.com/r-sadat-sayem/android-agent-skills.git --skill android-adaptive-ui --target both
 ```
+
+---
+
+## Updating
+
+### What happens when you install via `bootstrap-install.sh`
+
+The script clones the repo to a temp directory, copies the skill to `~/.claude/skills/android-adaptive-ui/`, and deletes the temp clone. This means:
+
+- **No local repo is left behind** — you cannot run `git pull` to update
+- **The install location is a plain copy**, not a symlink to any git repository
+- A `.skill-source` file is written inside the installed skill directory recording the GitHub URL, ref, and install timestamp — this is what `update-skill.sh` reads to know where to pull from
+
+To check what `.skill-source` contains:
+```bash
+cat ~/.claude/skills/android-adaptive-ui/.skill-source
+# repo=https://github.com/r-sadat-sayem/android-agent-skills.git
+# ref=main
+# installed_at=2026-06-09T00:00:00Z
+```
+
+### Update commands
+
+**Update one skill** (reads `.skill-source`, re-clones, re-installs):
+```bash
+./scripts/update-skill.sh --skill android-adaptive-ui
+```
+
+**Update all installed skills:**
+```bash
+./scripts/update-skill.sh --all
+```
+
+**Only update the Claude install (not Codex):**
+```bash
+./scripts/update-skill.sh --skill android-adaptive-ui --target claude
+```
+
+**Pull a specific tag or branch:**
+```bash
+./scripts/update-skill.sh --skill android-adaptive-ui --ref v1.2.0
+```
+
+**Dry-run — see installed version vs remote version without changing anything:**
+```bash
+./scripts/update-skill.sh --check --skill android-adaptive-ui
+# Claude  android-adaptive-ui  installed=1.0.0   remote=1.1.0
+```
+
+### If you installed with `--mode link`
+
+The skill directory is a symlink pointing directly at your local repo clone. `update-skill.sh` detects this and prints a reminder — just run `git pull` in the repo instead. The symlink will immediately reflect the updated files.
+
+### Version file
+
+Each skill ships a `VERSION` file. The current version of this skill:
+```bash
+cat ~/.claude/skills/android-adaptive-ui/VERSION
+```
+
+---
+
+## Testing: Phone → Tablet Migration
+
+Full test prompts are in `references/test-prompts.md`. The core scenario:
+
+**Your mobile UI is live. You want a tablet version without touching the phone layout.**
+
+```
+# Step 1 — Audit the phone UI
+/android-adaptive-ui analyze_ui --src app/src/main/java/ui/
+
+# Step 2 — Preview UX options in browser before committing
+/android-adaptive-ui ux_preview --src app/src/main/java/ui/
+
+# Step 3 — Apply large-screen track only (phone layout unchanged)
+/android-adaptive-ui apply_responsiveness --track large-screen
+
+# Step 4 — Fix deps and OptIn annotations
+/android-adaptive-ui fix:deps
+/android-adaptive-ui fix:optin
+
+# Step 5 — Re-audit to verify 0 CRITICAL
+/android-adaptive-ui analyze_ui --src app/src/main/java/ui/
+```
+
+**The key guarantee:** `NavigationSuiteScaffold` renders as a standard `BottomNavigationBar` on Compact-width screens (phones) — the phone user sees zero difference. On Medium+ screens (tablets) it auto-promotes to `NavigationRail` or `PermanentNavigationDrawer`.
+
+See `references/test-prompts.md` for 5 full scenarios including screenshot analysis, PRD-to-layout generation, and atomic single-fix flows.
 
 ---
 ## Claude Code CLI Usage
@@ -201,6 +295,7 @@ The fastest option — no prior audit needed, no form factor detection, one conc
 | `fix:scroll` | Add `.verticalScroll(rememberScrollState())` to `Column` blocks with ≥5 children |
 | `fix:orientation` | Remove or set to `unspecified` any `android:screenOrientation` lock in the manifest |
 | `fix:critical` | Re-read `.adaptive-ui-memory.json`, apply all open CRITICAL findings |
+| `fix:content-density` | Replace `GridCells.Fixed(N)` with `GridCells.Adaptive(minSize = 150.dp)` project-wide |
 
 **Example output:**
 ```
@@ -214,6 +309,62 @@ DetailScreen.kt:1 ADD  @file:OptIn(ExperimentalMaterial3AdaptiveApi::class)
 
 Apply? [yes / no]
 ```
+
+---
+
+### UX Preview Server
+
+Launch a localhost webpage showing adaptive UX options with thumbs feedback — use this before committing to a fix approach.
+
+```
+> /android-adaptive-ui ux_preview --src app/src/main/java/ui/
+> /android-adaptive-ui ux_preview --pattern navigation-suite-scaffold-migration
+> /android-adaptive-ui ux_preview --from-sketch
+```
+
+```
+UX Preview Server
+  URL      : http://localhost:8080
+  Patterns : 3
+  Feedback : ux_preview_output/feedback.json
+
+Press Enter to stop the server.
+```
+
+The page shows pattern cards (one per finding), each with: code snippet, form factor tags, pros/cons list, approach steps, and 👍/👎 feedback buttons. Votes are written to `ux_preview_output/feedback.json`. After you press Enter the skill summarizes the votes.
+
+Run directly without Claude:
+```bash
+python ./skills/android-adaptive-ui/scripts/ux_preview_server.py \
+  --pattern navigation-suite-scaffold-migration --port 8080
+```
+
+---
+
+### Sketch Analysis
+
+Analyze a UI screenshot or design mockup — the skill uses vision to detect navigation patterns, content structure, and layout, then maps them to playbook patterns.
+
+```
+> /android-adaptive-ui analyze_sketch --img screenshots/home-phone.png
+> /android-adaptive-ui analyze_sketch --img mockups/home.png --target large-screen
+```
+
+Detection runs in priority order: Navigation → Content → Layout → Device class. Output uses the same FINDINGS format as `analyze_ui`. Adding `--target large-screen` automatically calls `generate_layout --from-sketch` after detection.
+
+---
+
+### Generate Layout from PRD
+
+Generate adaptive Kotlin scaffold code directly from a PRD file, a previous sketch analysis, or a named playbook pattern.
+
+```
+> /android-adaptive-ui generate_layout --prd docs/music-player-tablet-prd.md
+> /android-adaptive-ui generate_layout --from-sketch
+> /android-adaptive-ui generate_layout --pattern content-discovery-feed
+```
+
+The skill shows a BEFORE→AFTER diff of what will be created, waits for confirmation, then writes the scaffold files and runs `fix:optin` + `fix:deps` as post-checks.
 
 ---
 
@@ -443,12 +594,15 @@ android-adaptive-ui/
 │
 ├── SKILL.md                              ← Claude's instruction backbone (9 sections)
 │
+├── VERSION                               ← Skill version (read by update-skill.sh)
+│
 ├── scripts/
 │   └── layout_audit.py                  ← Standalone audit script, no pip dependencies
 │   └── layout_audit_psi.sh              ← Kotlin PSI-backed audit wrapper
 │   └── template_smoke_check.py          ← Wear template compile-safety smoke checks
 │   └── validate_fixes.sh                ← Fast grep-based post-fix verifier
 │   └── verify_project_build.sh          ← Verifies target project build using its own Gradle config
+│   └── ux_preview_server.py             ← Localhost UX preview + feedback server (stdlib only)
 │
 ├── templates/
 │   ├── phone/
@@ -474,9 +628,12 @@ android-adaptive-ui/
 ├── references/
 │   ├── breakpoints.md                   ← All 5 WindowSizeClass width breakpoints + posture matrix
 │   ├── density-table.md                 ← ldpi → xxxhdpi table, Compose vs XML, anti-patterns
-│   ├── dependencies.md                 ← Gradle TOML blocks per form factor
+│   ├── dependencies.md                  ← Gradle TOML blocks per form factor
 │   ├── form-factor-decision-guide.md    ← Signals -> recommendation -> complexity
-│   └── audit-rules.md                  ← Rule IDs + audit behavior changelog
+│   ├── audit-rules.md                   ← Rule IDs + audit behavior changelog
+│   ├── ux-patterns.md                   ← Content discovery feed, nav rail, hero, grid composition rules
+│   ├── solutions-playbook.json          ← 13 proven fix patterns (9 technical + 4 UX)
+│   └── test-prompts.md                  ← Ready-to-paste prompts for 5 test scenarios
 │
 ├── gradle/
 │   ├── libs.versions.toml.snippet       ← Paste-ready version catalog entries
@@ -579,12 +736,25 @@ python ./skills/android-adaptive-ui/scripts/layout_audit.py \
 ## Quick Reference Card
 
 ```
-INSTALL     cp -r android-adaptive-ui ~/.claude/skills/
+INSTALL     bootstrap-install.sh --repo <url> --skill android-adaptive-ui --target both
+UPDATE      ./scripts/update-skill.sh --skill android-adaptive-ui
+CHECK VER   ./scripts/update-skill.sh --check --skill android-adaptive-ui
+
+── Phone → Tablet (primary test flow) ───────────────────────
+AUDIT       /android-adaptive-ui analyze_ui --src app/src/main/java/ui/
+PREVIEW     /android-adaptive-ui ux_preview --src app/src/main/java/ui/
+FIX TABLET  /android-adaptive-ui apply_responsiveness --track large-screen
+DEPS        /android-adaptive-ui fix:deps
+OPTIN       /android-adaptive-ui fix:optin
+VERIFY      /android-adaptive-ui analyze_ui --src app/src/main/java/ui/
+
+── UX design workflows (new) ────────────────────────────────
+SKETCH      /android-adaptive-ui analyze_sketch --img screenshots/home.png
+GENERATE    /android-adaptive-ui generate_layout --prd docs/prd.md
+PREVIEW     /android-adaptive-ui ux_preview --pattern <id>
 
 ── Full workflows ────────────────────────────────────────────
-AUDIT       /android-adaptive-ui analyze_ui
-            /android-adaptive-ui analyze_ui --src app/src/main/java/ui/
-
+AUDIT ALL   /android-adaptive-ui analyze_ui
 FIX ALL     /android-adaptive-ui apply_responsiveness
 
 ── Targeted (fast) ──────────────────────────────────────────
@@ -601,6 +771,7 @@ COMBINED    /android-adaptive-ui apply_responsiveness --track large-screen --onl
             /android-adaptive-ui fix:text
             /android-adaptive-ui fix:orientation
             /android-adaptive-ui fix:critical
+            /android-adaptive-ui fix:content-density   ← NEW: GridCells.Fixed → Adaptive
 
 ── Add form factor ───────────────────────────────────────────
 EXPAND      /android-adaptive-ui add_form_factor <wear|auto|foldable|large-screen>
@@ -613,6 +784,7 @@ EXPAND      /android-adaptive-ui add_form_factor <wear|auto|foldable|large-scree
             ./scripts/layout_audit_psi.sh --src ./app/src/main --format json
             ./scripts/validate_fixes.sh ./app/src/main
             ./scripts/verify_project_build.sh --project-dir . --module app
+            python scripts/ux_preview_server.py --pattern <id> --port 8080
 
 ── Templates ─────────────────────────────────────────────────
             templates/phone/AdaptiveScaffold.kt
@@ -628,4 +800,6 @@ EXPAND      /android-adaptive-ui add_form_factor <wear|auto|foldable|large-scree
 
 ── Decision support ──────────────────────────────────────────
             references/form-factor-decision-guide.md
+            references/ux-patterns.md
+            references/test-prompts.md          ← 5 test scenarios (phone→tablet, PRD, sketch...)
 ```
