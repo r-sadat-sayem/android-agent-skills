@@ -98,3 +98,29 @@ fi
 
 "${cmd[@]}"
 
+# Write .skill-source record into each installed skill directory so update-skill.sh
+# knows where to pull from later.
+write_source_record() {
+  local base_dir="$1"
+  local skill_name="$2"
+  local dst="${base_dir}/${skill_name}"
+  if [[ -d "$dst" && ! -L "$dst" ]]; then
+    cat > "${dst}/.skill-source" <<RECORD
+repo=${REPO_URL}
+ref=${REF}
+installed_at=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+RECORD
+  fi
+}
+
+if [[ $INSTALL_ALL -eq 1 ]]; then
+  while IFS= read -r skill_dir; do
+    sname="$(basename "$skill_dir")"
+    [[ "$TARGET" == "both" || "$TARGET" == "claude" ]] && write_source_record "${CLAUDE_DIR:-${HOME}/.claude/skills}" "$sname"
+    [[ "$TARGET" == "both" || "$TARGET" == "codex"  ]] && write_source_record "${CODEX_DIR:-${HOME}/.codex/skills}"  "$sname"
+  done < <(find "$TMP_DIR/repo/skills" -mindepth 1 -maxdepth 1 -type d | sort)
+else
+  [[ "$TARGET" == "both" || "$TARGET" == "claude" ]] && write_source_record "${CLAUDE_DIR:-${HOME}/.claude/skills}" "$SKILL"
+  [[ "$TARGET" == "both" || "$TARGET" == "codex"  ]] && write_source_record "${CODEX_DIR:-${HOME}/.codex/skills}"  "$SKILL"
+fi
+
