@@ -1,8 +1,10 @@
 # Android Adaptive UI Skill
 
-A Codex/Claude-compatible skill that audits, fixes, generates, and previews Android UI code for every screen class: phones, tablets, resizable/foldable, TV, Wear OS, and Android Auto.
+**For Android developers:** An AI skill that audits your Jetpack Compose UI for adaptive design issues, applies targeted fixes, generates multi-form-factor scaffolds, and previews UX patterns in a browser — all without leaving your editor.
 
-**Baseline:** Jetpack Compose · BOM 2026.04.01 · Kotlin 2.3.10 · Material3 Adaptive 1.2.0 · Version 1.1.0
+**For AI / agent developers:** A reference implementation of a production-grade Claude Code / Codex skill. Demonstrates the companion probe pattern, graceful degradation, structured output contracts, standalone CI scripts, and superpowers ecosystem integration. See [Skill Architecture](#skill-architecture) for the design breakdown.
+
+**Baseline:** Jetpack Compose · BOM 2026.04.01 · Kotlin 2.3.10 · Material3 Adaptive 1.2.0 · Version 1.2.0
 
 ---
 
@@ -26,6 +28,9 @@ A Codex/Claude-compatible skill that audits, fixes, generates, and previews Andr
   - [Recommended: install superpowers](#recommended-install-superpowers-for-significantly-better-results)
 - [Audit Script (Standalone)](#audit-script-standalone)
 - [File Structure](#file-structure)
+- [Skill Architecture](#skill-architecture)
+  - [System Architecture diagram](../../docs/system-overview.html)
+  - [Workflow Flows diagram](../../docs/workflow-flow.html)
 - [Form Factor Coverage](#form-factor-coverage)
 - [Using with Other Agents](#using-with-other-agents)
 - [Limitations](#limitations)
@@ -445,6 +450,8 @@ At the start of every session this skill probes the available skills list and ac
 COMPANIONS ─────────────────────────────────────
 Active: gsd-graphify · gsd-intel · gsd-thread
 Inactive (not installed): gsd-scan · gsd-debug
+Verification: superpowers:verification-before-completion [active|fallback→verify_project_build.sh]
+Parallel exec: superpowers:subagent-driven-development [active|fallback→serial]
 Memory: .adaptive-ui-memory.json
 ```
 
@@ -720,6 +727,46 @@ android-adaptive-ui/
 
 ---
 
+## Skill Architecture
+
+*This section is for AI/agent developers who want to understand how the skill is structured or use it as a reference for their own skills.*
+
+`SKILL.md` is the instruction backbone — the file Claude reads to understand what to do. It is divided into 12 sections:
+
+| Section | Purpose |
+|---|---|
+| §1 Session Start | Companion probe — checks which other skills are installed, activates them silently, loads the playbook and UX pattern rules |
+| §2 Form Factor Detection | Reads imports and module names to classify the project before any work begins |
+| §3 Output Format | Defines the structured output contract all workflows must produce — scan card, findings table, before/after diff, DONE block |
+| §4 `analyze_ui` | Primary audit workflow |
+| §5 `analyze_sketch` | Vision-based UI analysis from screenshots or mockups |
+| §6 `generate_layout` | Scaffold generation from PRD, sketch, or pattern |
+| §7 `ux_preview` | Localhost feedback server workflow |
+| §8 `apply_responsiveness` | Targeted multi-concern fix workflow |
+| §9 Atomic fix sub-commands | Single-concern fixes with no prior audit required |
+| §10 `add_form_factor` | Full form factor addition workflow |
+| §11 Form Factor Reference | Quick lookup table: templates, constraints per track |
+| §12 Hard Constraints | Rules the skill must never violate regardless of user instructions |
+
+**Key design patterns used:**
+
+- **Companion probe + graceful degradation** (§1): At session start the skill checks which other skills are installed and stores boolean flags. Every integration point uses `if <skill> active → use it; else → built-in fallback`. The skill never blocks on a missing companion.
+- **Structured output contract** (§3): Every workflow produces the same card format. This makes the skill's output machine-readable and predictable for downstream tools.
+- **Playbook-first reasoning** (§1): Before generating any fix, the skill checks `solutions-playbook.json` for a matching pattern. If found, it uses the proven approach directly instead of re-reasoning — faster and more consistent.
+- **Atomic sub-commands** (§9): Single-concern commands that run without a prior audit. Designed for users who know exactly what they need without wanting full workflow overhead.
+- **Verification gate** (§8, §10): The DONE block is never emitted until a build verification step passes — either via `superpowers:verification-before-completion` or the fallback shell script.
+
+**Visual diagrams:**
+
+| Diagram | What it shows |
+|---|---|
+| [System Architecture](../../docs/system-overview.html) | All 7 layers from user commands → session init → workflow engines → data stores → companion skills → output → CI scripts |
+| [Workflow Flows](../../docs/workflow-flow.html) | Step-by-step flow for every command: `analyze_ui` audit pipeline, `ux_preview` browser loop, `add_form_factor` scaffold, `fix:*` fast path, `generate_layout`, and the companion skill decision tree |
+
+> Open these files in a browser directly from the repo — they are self-contained HTML with no external dependencies.
+
+---
+
 ## Form Factor Coverage
 
 ### Phone
@@ -854,7 +901,7 @@ COMBINED    /android-adaptive-ui apply_responsiveness --track large-screen --onl
             /android-adaptive-ui fix:text
             /android-adaptive-ui fix:orientation
             /android-adaptive-ui fix:critical
-            /android-adaptive-ui fix:content-density   ← NEW: GridCells.Fixed → Adaptive
+            /android-adaptive-ui fix:content-density
 
 ── Add form factor ───────────────────────────────────────────
 EXPAND      /android-adaptive-ui add_form_factor <phone|tablet|resizable|tv|wear|auto>
