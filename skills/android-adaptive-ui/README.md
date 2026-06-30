@@ -1,13 +1,16 @@
 # Android Adaptive UI Skill
 
-A Codex/Claude-compatible skill that audits, fixes, generates, and previews Android UI code for every screen class: phones, tablets, foldables, Wear OS, and Android Auto.
+**For Android developers:** An AI skill that audits your Jetpack Compose UI for adaptive design issues, applies targeted fixes, generates multi-form-factor scaffolds, and previews UX patterns in a browser — all without leaving your editor.
 
-**Baseline:** Jetpack Compose · BOM 2026.04.01 · Kotlin 2.3.10 · Material3 Adaptive 1.2.0 · Version 1.1.0
+**For AI / agent developers:** A reference implementation of a production-grade Claude Code / Codex skill. Demonstrates the companion probe pattern, graceful degradation, structured output contracts, standalone CI scripts, and superpowers ecosystem integration. See [Skill Architecture](#skill-architecture) for the design breakdown.
+
+**Baseline:** Jetpack Compose · BOM 2026.04.01 · Kotlin 2.3.10 · Material3 Adaptive 1.2.0 · Version 1.2.0
 
 ---
 
 ## Contents
 
+- [Use Cases](#use-cases)
 - [What This Skill Does](#what-this-skill-does)
 - [Installation](#installation)
 - [Updating](#updating)
@@ -22,12 +25,37 @@ A Codex/Claude-compatible skill that audits, fixes, generates, and previews Andr
   - [Add a Form Factor](#add-a-form-factor)
   - [Running the Audit Script Directly](#running-the-audit-script-directly)
 - [Skill Ecosystem Integration](#skill-ecosystem-integration)
+  - [Recommended: install superpowers](#recommended-install-superpowers-for-significantly-better-results)
 - [Audit Script (Standalone)](#audit-script-standalone)
 - [File Structure](#file-structure)
+- [Skill Architecture](#skill-architecture)
+  - [System Architecture diagram](../../docs/system-overview.html)
+  - [Workflow Flows diagram](../../docs/workflow-flow.html)
 - [Form Factor Coverage](#form-factor-coverage)
 - [Using with Other Agents](#using-with-other-agents)
 - [Limitations](#limitations)
 - [Quick Reference Card](#quick-reference-card)
+
+---
+
+## Use Cases
+
+See [`USECASES.md`](USECASES.md) for step-by-step workflows covering every scenario:
+
+| # | Scenario |
+|---|---|
+| 1 | Greenfield — design from a sketch or hand-drawing |
+| 2 | Greenfield — generate from a PRD or spec doc |
+| 3 | Live phone app → tablet |
+| 4 | Live phone app → tablet with visual feedback first |
+| 5 | Add a new form factor (TV, Wear, Auto, Resizable) |
+| 6 | Fix a known issue without running a full audit |
+| 7 | Migrate deprecated Window APIs |
+| 8 | Audit a single feature module |
+| 9 | Multi-module monorepo — module-by-module |
+| 10 | Learn a pattern before applying it |
+| 11 | Run in CI without Claude |
+| 12 | Recover from a fix that broke something |
 
 ---
 
@@ -236,8 +264,9 @@ Apply all? [all / one-by-one / critical-only / skip]
 | Flag | Scope | Speed |
 |---|---|---|
 | `--track phone` | Navigation scaffold + scroll guards | Fast |
-| `--track large-screen` | ListDetail / SupportingPane scaffolds | Medium |
-| `--track foldable` | PostureDetector + FoldAwareLayout | Medium |
+| `--track tablet` | ListDetail / SupportingPane scaffolds | Medium |
+| `--track resizable` | ResizableLayout + posture detection + multi-window | Medium |
+| `--track tv` | TvAppScaffold, D-pad focus, module isolation | Medium |
 | `--track wear` | WearAppScaffold, module isolation check | Medium |
 | `--track auto` | CarAppService skeleton, manifest check | Fast |
 | `--track density` | Resource folder audit only | Very fast |
@@ -371,10 +400,12 @@ The skill shows a BEFORE→AFTER diff of what will be created, waits for confirm
 ### Add a Form Factor
 
 ```
+> /android-adaptive-ui add_form_factor phone
+> /android-adaptive-ui add_form_factor tablet
+> /android-adaptive-ui add_form_factor resizable
+> /android-adaptive-ui add_form_factor tv
 > /android-adaptive-ui add_form_factor wear
 > /android-adaptive-ui add_form_factor auto
-> /android-adaptive-ui add_form_factor foldable
-> /android-adaptive-ui add_form_factor large-screen
 ```
 
 Claude checks your Gradle setup, walks through module isolation requirements, integrates the relevant template step by step, then auto-runs `fix:optin` and `fix:deps` as a post-check. If `claude-md-management:revise-claude-md` is active, it updates CLAUDE.md automatically.
@@ -419,19 +450,69 @@ At the start of every session this skill probes the available skills list and ac
 COMPANIONS ─────────────────────────────────────
 Active: gsd-graphify · gsd-intel · gsd-thread
 Inactive (not installed): gsd-scan · gsd-debug
+Verification: superpowers:verification-before-completion [active|fallback→verify_project_build.sh]
+Parallel exec: superpowers:subagent-driven-development [active|fallback→serial]
 Memory: .adaptive-ui-memory.json
 ```
 
-### Companion Behaviors
+### Recommended: install `superpowers` for significantly better results
+
+[`superpowers`](https://github.com/obra/superpowers) is the companion skill that makes the biggest difference. It gives this skill structured orchestration capabilities it cannot do on its own:
+
+| Without `superpowers` | With `superpowers` |
+|---|---|
+| `add_form_factor tv` generates code immediately | Runs brainstorming first — surfaces module structure questions, D-pad navigation decisions, and manifest requirements *before* writing files |
+| `generate_layout --prd` writes a scaffold directly | Uses `writing-plans` to produce a reviewable plan you approve before any code is written |
+| Compilation error after a fix → Claude improvises | `systematic-debugging` takes over with a structured hypothesis→test→fix loop |
+| Complex multi-file changes happen sequentially | `executing-plans` and `dispatching-parallel-agents` run independent tasks concurrently |
+
+**Install via AI agent** — paste into Claude Code or Codex:
+
+```
+Install the superpowers skill from https://github.com/obra/superpowers
+
+1. Clone the repo:
+   git clone https://github.com/obra/superpowers.git /tmp/superpowers
+2. Copy skills into Claude:
+   cp -r /tmp/superpowers/skills/* ~/.claude/skills/
+3. Verify these are present:
+   ls ~/.claude/skills/ | grep -E "brainstorming|writing-plans|systematic-debugging|executing-plans"
+4. Clean up:
+   rm -rf /tmp/superpowers
+```
+
+**Install manually:**
+
+```bash
+git clone https://github.com/obra/superpowers.git /tmp/superpowers
+cp -r /tmp/superpowers/skills/* ~/.claude/skills/
+rm -rf /tmp/superpowers
+```
+
+Once installed, the skill probe at session start will show them as active:
+
+```
+COMPANIONS ─────────────────────────────────────
+Active: superpowers:brainstorming · superpowers:writing-plans
+        superpowers:systematic-debugging · superpowers:executing-plans
+        gsd-graphify · gsd-intel · gsd-thread
+Memory: .adaptive-ui-memory.json
+```
+
+### Other Companion Behaviors
 
 | Companion skill | How it's used |
 |---|---|
+| **`superpowers:brainstorming`** | Runs before `add_form_factor` and `generate_layout` — surfaces design decisions before any code is written |
+| **`superpowers:writing-plans`** | Creates a reviewable step-by-step plan before multi-file scaffold generation |
+| **`superpowers:systematic-debugging`** | Takes over automatically when an applied fix introduces a new compilation error |
+| **`superpowers:executing-plans`** | Runs independent fix tasks in parallel — faster on large audits |
 | **`gsd-graphify`** | After each audit, findings are stored as `AdaptiveUIFinding` graph nodes linked to file nodes. Before scanning, the graph is queried to skip already-known clean files. |
 | **`gsd-intel`** | Reads `.planning/intel/*.md` before scanning. Files already catalogued there are skipped, reducing traversal on large projects. |
 | **`gsd-scan` / `gsd-map-codebase`** | Delegates initial project structure mapping instead of raw `os.walk` — faster on monorepos. |
 | **`gsd-thread`** | Wraps each workflow in a named thread (`adaptive-ui-<project>`). Audit state survives Claude context resets and can be resumed mid-flow in future sessions. |
 | **`gsd-note` / `gsd-add-todo`** | Creates one tracked todo per CRITICAL finding immediately after `analyze_ui`. |
-| **`gsd-debug`** | If an applied fix introduces a new compilation error, hands off to systematic debugging automatically. |
+| **`gsd-debug`** | Fallback systematic debugger when `superpowers:systematic-debugging` is not installed. |
 | **`feature-dev:feature-dev`** | When `add_form_factor` requires creating more than 3 new files, delegates to this skill with the relevant template as context. |
 | **`claude-md-management:revise-claude-md`** | Called automatically after any `add_form_factor` to update CLAUDE.md with new patterns. |
 
@@ -594,6 +675,7 @@ android-adaptive-ui/
 │
 ├── SKILL.md                              ← Claude's instruction backbone (9 sections)
 │
+├── USECASES.md                           ← Step-by-step workflows for every scenario
 ├── VERSION                               ← Skill version (read by update-skill.sh)
 │
 ├── scripts/
@@ -645,22 +727,70 @@ android-adaptive-ui/
 
 ---
 
+## Skill Architecture
+
+*This section is for AI/agent developers who want to understand how the skill is structured or use it as a reference for their own skills.*
+
+`SKILL.md` is the instruction backbone — the file Claude reads to understand what to do. It is divided into 12 sections:
+
+| Section | Purpose |
+|---|---|
+| §1 Session Start | Companion probe — checks which other skills are installed, activates them silently, loads the playbook and UX pattern rules |
+| §2 Form Factor Detection | Reads imports and module names to classify the project before any work begins |
+| §3 Output Format | Defines the structured output contract all workflows must produce — scan card, findings table, before/after diff, DONE block |
+| §4 `analyze_ui` | Primary audit workflow |
+| §5 `analyze_sketch` | Vision-based UI analysis from screenshots or mockups |
+| §6 `generate_layout` | Scaffold generation from PRD, sketch, or pattern |
+| §7 `ux_preview` | Localhost feedback server workflow |
+| §8 `apply_responsiveness` | Targeted multi-concern fix workflow |
+| §9 Atomic fix sub-commands | Single-concern fixes with no prior audit required |
+| §10 `add_form_factor` | Full form factor addition workflow |
+| §11 Form Factor Reference | Quick lookup table: templates, constraints per track |
+| §12 Hard Constraints | Rules the skill must never violate regardless of user instructions |
+
+**Key design patterns used:**
+
+- **Companion probe + graceful degradation** (§1): At session start the skill checks which other skills are installed and stores boolean flags. Every integration point uses `if <skill> active → use it; else → built-in fallback`. The skill never blocks on a missing companion.
+- **Structured output contract** (§3): Every workflow produces the same card format. This makes the skill's output machine-readable and predictable for downstream tools.
+- **Playbook-first reasoning** (§1): Before generating any fix, the skill checks `solutions-playbook.json` for a matching pattern. If found, it uses the proven approach directly instead of re-reasoning — faster and more consistent.
+- **Atomic sub-commands** (§9): Single-concern commands that run without a prior audit. Designed for users who know exactly what they need without wanting full workflow overhead.
+- **Verification gate** (§8, §10): The DONE block is never emitted until a build verification step passes — either via `superpowers:verification-before-completion` or the fallback shell script.
+
+**Visual diagrams:**
+
+| Diagram | What it shows |
+|---|---|
+| [System Architecture](../../docs/system-overview.html) | All 7 layers from user commands → session init → workflow engines → data stores → companion skills → output → CI scripts |
+| [Workflow Flows](../../docs/workflow-flow.html) | Step-by-step flow for every command: `analyze_ui` audit pipeline, `ux_preview` browser loop, `add_form_factor` scaffold, `fix:*` fast path, `generate_layout`, and the companion skill decision tree |
+
+> Open these files in a browser directly from the repo — they are self-contained HTML with no external dependencies.
+
+---
+
 ## Form Factor Coverage
 
-### Phone / Compact
+### Phone
 - `NavigationSuiteScaffold` with automatic `BottomBar → Rail → Drawer` switching
 - `BoxWithConstraintsGuard` kept as an escape hatch only (not a primary adaptive strategy)
 
-### Tablets & Large Screens
+### Tablet
 - `NavigableListDetailPaneScaffold` for master-detail (`ListDetailScreen.kt`)
 - `SupportingPaneScaffold` for document / productivity layouts (`SupportingPaneScreen.kt`)
 - All 5 `WindowSizeClass` breakpoints: Compact / Medium / Expanded / Large / ExtraLarge
 - `AnimatedPane` wrappers + predictive back gesture support
 
-### Foldables
+### Resizable (Foldable + Multi-Window)
 - `DevicePosture` sealed class: `NormalPosture`, `TableTopPosture`, `BookPosture`, `SeparatingPosture`
+- `ResizableLayout.kt` — single composable handles all postures + multi-window resize via `WindowSizeClass`
 - Hinge-aware `Spacer` sizing via `FoldingFeature.bounds`
-- Lifecycle-safe observation via `produceState`
+- Lifecycle-safe observation via `produceState` + `WindowInfoTracker`
+
+### Android TV
+- `TvAppScaffold.kt` — `NavigationDrawer` + `TvLazyColumn` / `TvLazyRow` content layout
+- `Surface {}` required at root — mandatory for TV focus ripple and background
+- D-pad-navigable `Card` components with automatic focused/selected states
+- Separate `:tv` module — never mix `androidx.tv.*` with the phone `:app`
+- Manifest requires `android.software.leanback` + `android.hardware.touchscreen required="false"`
 
 ### Wear OS
 - `TransformingLazyColumn` (replaces `ScalingLazyColumn`)
@@ -771,10 +901,10 @@ COMBINED    /android-adaptive-ui apply_responsiveness --track large-screen --onl
             /android-adaptive-ui fix:text
             /android-adaptive-ui fix:orientation
             /android-adaptive-ui fix:critical
-            /android-adaptive-ui fix:content-density   ← NEW: GridCells.Fixed → Adaptive
+            /android-adaptive-ui fix:content-density
 
 ── Add form factor ───────────────────────────────────────────
-EXPAND      /android-adaptive-ui add_form_factor <wear|auto|foldable|large-screen>
+EXPAND      /android-adaptive-ui add_form_factor <phone|tablet|resizable|tv|wear|auto>
 
 ── Script (standalone / CI) ─────────────────────────────────
             python scripts/layout_audit.py --src ./app/src/main
@@ -789,7 +919,8 @@ EXPAND      /android-adaptive-ui add_form_factor <wear|auto|foldable|large-scree
 ── Templates ─────────────────────────────────────────────────
             templates/phone/AdaptiveScaffold.kt
             templates/tablet-large-screen/ListDetailScreen.kt
-            templates/foldable/PostureDetector.kt
+            templates/resizable/ResizableLayout.kt
+            templates/tv/TvAppScaffold.kt
             templates/wear/WearAppScaffold.kt
             templates/auto/MyCarAppService.kt
             templates/audit-report-template.md

@@ -1,11 +1,11 @@
 ---
 name: "android-adaptive-ui"
-description: "Audit, fix, generate, and preview Android UI code across phones, tablets, foldables, Wear OS, and Android Auto — with sketch analysis, UX pattern generation, localhost feedback preview, and structured reporting."
+description: "Audit, fix, generate, and preview Android UI code across phones, tablets, resizable/foldable, TV, Wear OS, and Android Auto — with sketch analysis, UX pattern generation, localhost feedback preview, and structured reporting."
 ---
 
 # Android Adaptive UI Architect
 
-Audit, fix, generate, and preview Android UI code for all screen classes: phones, tablets, foldables, Wear OS, Android Auto.
+Audit, fix, generate, and preview Android UI code for all screen classes: phones, tablets, resizable/foldable, TV, Wear OS, Android Auto.
 
 **Baseline:** Compose BOM 2026.04.01 · Kotlin 2.3.10 · Material3 Adaptive 1.2.0 · WindowManager 1.5.1
 
@@ -17,7 +17,7 @@ analyze_ui                                   full project audit (⚠ not recomme
 apply_responsiveness [--track X] [--only Y]  targeted fix
 fix:deps | fix:optin | fix:nav | fix:critical atomic single-concern fixes
 fix:content-density                          replace hardcoded column counts with adaptive grids
-add_form_factor <wear|auto|foldable|large-screen>
+add_form_factor <phone|tablet|resizable|tv|wear|auto>
 analyze_sketch --img <path>                  analyze a UI screenshot or sketch (vision)
 analyze_sketch --img <path> --target <ff>    generate adaptive version for target form factor
 generate_layout --prd <path>                 generate adaptive scaffold from a PRD/spec file
@@ -44,6 +44,8 @@ Run this BEFORE any workflow. Check the available skills list in your current se
 | `gsd-debug` | **Debugger** — hand off to systematic debugging when an applied fix introduces a new error |
 | `feature-dev:feature-dev` | **Builder** — delegate `add_form_factor` implementation when it requires significant new code |
 | `claude-md-management:revise-claude-md` | **Doc sync** — after any `add_form_factor`, update CLAUDE.md with new patterns |
+| `superpowers:verification-before-completion` | **Verification gate** — run build + audit before reporting DONE on any batch fix or form factor addition; if absent, run `scripts/verify_project_build.sh` directly |
+| `superpowers:subagent-driven-development` | **Parallel executor** — fan out independent fixes across files concurrently when ≥5 CRITICAL findings exist; if absent, apply fixes serially |
 | `android-adaptive-ui` memory file | **Primary store** — `.adaptive-ui-memory.json` JSON-LD; always write here regardless of other skills |
 | `solutions-playbook.json` | **Pattern cache** — read `references/solutions-playbook.json` at session start; skip re-reasoning on known patterns |
 | `ux-patterns.md` | **UX rules** — read `references/ux-patterns.md` for content discovery feed, nav rail, hero, and grid composition rules used by `analyze_sketch`, `generate_layout`, and `ux_preview` |
@@ -53,6 +55,8 @@ Run this BEFORE any workflow. Check the available skills list in your current se
 COMPANIONS ─────────────────────────────────────
 Active: gsd-graphify · gsd-intel · gsd-thread
 Inactive (not installed): gsd-scan · gsd-debug
+Verification: superpowers:verification-before-completion [active|fallback→verify_project_build.sh]
+Parallel exec: superpowers:subagent-driven-development [active|fallback→serial]
 Memory: .adaptive-ui-memory.json
 Playbook: 13 patterns loaded (references/solutions-playbook.json)
 UX Patterns: references/ux-patterns.md
@@ -92,6 +96,8 @@ UX Patterns: references/ux-patterns.md
 - If `gsd-note` / `gsd-add-todo` active → after `analyze_ui`, call the skill once per CRITICAL finding to create a tracked todo.
 - If `feature-dev:feature-dev` active → when `add_form_factor` requires creating > 3 new files, delegate to that skill with the template as context.
 - If `claude-md-management:revise-claude-md` active → call after any `add_form_factor` completes.
+- If `superpowers:verification-before-completion` active → invoke it as the final step of any `apply_responsiveness`, `add_form_factor`, or `ux_preview` workflow instead of calling `scripts/verify_project_build.sh` directly. If absent → call `scripts/verify_project_build.sh --project-dir <root> --module app` directly. Either way, never emit a DONE block until the verification step passes.
+- If `superpowers:subagent-driven-development` active → when `analyze_ui` surfaces ≥5 CRITICAL findings and the user confirms "all", invoke it to apply fixes in parallel (one agent per finding). If absent → apply fixes serially in the order listed.
 - If no companion skills → proceed with only the memory file. Never block on missing companions.
 
 ---
@@ -102,11 +108,12 @@ Run before any work. A project may match multiple tracks.
 
 | Signal | Track |
 |---|---|
-| `:wear` module OR `androidx.wear.compose.*` import | Wear OS |
-| `CarAppService` subclass OR `:auto`/`:automotive` module | Android Auto |
-| `FoldingFeature` OR `androidx.window:window` dep | Foldable |
-| `ListDetailPaneScaffold` / `SupportingPaneScaffold` / `NavigationSuiteScaffold` OR `sw600dp` dirs | Large Screen |
-| None of the above | Phone (baseline) |
+| `:wear` module OR `androidx.wear.compose.*` import | `wear` |
+| `CarAppService` subclass OR `:auto`/`:automotive` module | `auto` |
+| `:tv` module OR `androidx.tv.*` import OR `android.software.leanback` feature | `tv` |
+| `FoldingFeature` OR `WindowInfoTracker` OR `DevicePosture` OR multi-window resize handling | `resizable` |
+| `ListDetailPaneScaffold` / `SupportingPaneScaffold` / `NavigationSuiteScaffold` OR `sw600dp` dirs | `tablet` |
+| None of the above | `phone` (baseline) |
 
 If detection is ambiguous, ask the developer which form factors they intend to support.
 
@@ -192,10 +199,11 @@ analyze_ui
 6. If `gsd-note`/`gsd-add-todo` active → create one todo per CRITICAL finding now.
 7. If `gsd-graphify` active → sync findings to graph now.
 8. Prompt for confirmation before any code changes.
+9. After user confirms: if CRITICAL count ≥ 5 AND `superpowers:subagent-driven-development` active → invoke it; otherwise apply fixes serially.
 
 ---
 
-## 4a — Workflow: `analyze_sketch --img <path>`
+## 5 — Workflow: `analyze_sketch --img <path>`
 
 Analyze a UI screenshot or design sketch using vision. Outputs findings in the same format as `analyze_ui`.
 
@@ -237,7 +245,7 @@ If `--target <form-factor>` is set, skip the prompt and call `generate_layout --
 
 ---
 
-## 4b — Workflow: `generate_layout`
+## 6 — Workflow: `generate_layout`
 
 Generate adaptive Kotlin scaffold code from a PRD, sketch analysis, or named playbook pattern.
 
@@ -275,7 +283,7 @@ When reading a PRD:
 
 ---
 
-## 4c — Workflow: `ux_preview`
+## 7 — Workflow: `ux_preview`
 
 Launch a localhost webpage showing adaptive UX options and collecting user feedback.
 
@@ -293,28 +301,38 @@ ux_preview --from-sketch
    - `--from-sketch` → use patterns from last `analyze_sketch`
 2. Run: `python scripts/ux_preview_server.py [--src <path>] [--pattern <id>] [--port 8080]`
 3. Report URL to user: `UX Preview → http://localhost:8080`
-4. Server stays alive until user presses Enter
-5. After server stops, read `ux_preview_output/feedback.json` and summarize votes:
+4. Server blocks until the user clicks **Submit** in the browser — Submit IS the confirmation
+5. Read `ux_preview_output/feedback.json` — extract the `selected` field from the last entry
+6. **Automatically proceed to implementation** — no additional prompt:
+   - Call `generate_layout --pattern <selected-id>` using the selected pattern
+   - Show the BEFORE→AFTER diff of what will be written
+   - Write the scaffold files
+   - Run `fix:optin` then `fix:deps` as post-checks
+   - Run `analyze_ui --src <new files>` as final validation
+   - **Verification gate:** if `superpowers:verification-before-completion` active → invoke it; otherwise run `scripts/verify_project_build.sh --project-dir <root> --module app`. Do NOT emit DONE until this passes.
+7. Emit a DONE block:
 
 ```
-FEEDBACK SUMMARY ────────────────────────────────────
-navigation-suite-scaffold-migration   +3 / -0   ✓ helpful
-discovery-grid-responsive             +1 / -1
-hero-content-pattern                  +0 / -2   ✗ not helpful
+DONE ────────────────────────────────────────────────
+Selected  : navigation-suite-scaffold-migration
+Generated : app/src/main/java/ui/AdaptiveScaffold.kt
+✓  fix:optin   — @OptIn added to 2 files
+✓  fix:deps    — material3-adaptive-navigation-suite added
+✓  analyze_ui  — 0 CRITICAL · 0 WARNING on new files
 ```
 
-6. For any pattern voted down: offer `generate_layout --pattern <alt-id>` with the next-best alternative
+If `feedback.json` has no `selected` entry (server was cancelled with Ctrl-C): report "No selection recorded — nothing applied."
 
 ### What the page shows
 
-- **Device tabs** (Phone / Tablet / Foldable) — filter cards by form factor
-- **Pattern cards** — one per finding, each with: pattern name · category · problem statement · code snippet · pros/cons · approach steps · thumbs feedback buttons
-- **Feedback** — POST to `/feedback` endpoint, appended to `ux_preview_output/feedback.json`
+- **Pattern cards** — one per finding, each with: pattern name · category · problem statement · code snippet · pros/cons · approach steps
+- **Single-select radio** — click a card to select it (green ring); only one selection allowed
+- **Submit button** — fixed at bottom of page; enabled once a card is selected; clicking Submit records the choice, shows "✓ Selection recorded", and shuts the server down automatically
 - **Zero external deps** — pure stdlib Python, single-file HTML output
 
 ---
 
-## 5 — Workflow: `apply_responsiveness [--track X] [--only Y]`
+## 8 — Workflow: `apply_responsiveness [--track X] [--only Y]`
 
 Without flags: runs all tracks, all concerns. Heavy — use flags to scope.
 
@@ -323,8 +341,9 @@ Without flags: runs all tracks, all concerns. Heavy — use flags to scope.
 | Flag | Scope | Typical token cost |
 |---|---|---|
 | `--track phone` | Navigation scaffold + scroll guards | Low |
-| `--track large-screen` | ListDetail / Supporting pane scaffolds | Medium |
-| `--track foldable` | PostureDetector + FoldAwareLayout | Medium |
+| `--track tablet` | ListDetail / Supporting pane scaffolds | Medium |
+| `--track resizable` | PostureDetector + ResizableLayout + multi-window | Medium |
+| `--track tv` | TvAppScaffold, D-pad focus, module isolation check | Medium |
 | `--track wear` | WearAppScaffold, module isolation check | Medium |
 | `--track auto` | CarAppService skeleton, manifest check | Low |
 | `--track density` | Resource folder audit only | Very low |
@@ -349,10 +368,11 @@ Without flags: runs all tracks, all concerns. Heavy — use flags to scope.
 5. Apply after confirmation.
 6. If `gsd-thread` active → write progress checkpoint to thread.
 7. Run `analyze_ui` scoped to changed files only as a post-check.
+8. **Verification gate:** if `superpowers:verification-before-completion` active → invoke it now; otherwise run `scripts/verify_project_build.sh --project-dir <root> --module app`. Do NOT emit DONE until this passes.
 
 ---
 
-## 6 — Atomic Fix Sub-commands
+## 9 — Atomic Fix Sub-commands
 
 These run a single targeted concern without a prior audit. Fastest option for known issues.
 
@@ -383,49 +403,56 @@ Apply? [yes / no]
 
 ---
 
-## 7 — Workflow: `add_form_factor <name>`
+## 10 — Workflow: `add_form_factor <name>`
 
 Before starting, consult `references/form-factor-decision-guide.md` to validate ROI and complexity for the target form factor.
 
 1. Check existing Gradle deps.
-2. `wear` → confirm separate `:wear` module exists or scaffold it. If `feature-dev:feature-dev` active and > 3 new files needed → delegate.
-3. `auto` → confirm separate `:auto`/`:automotive` module or flavor.
-4. `foldable` / `large-screen` → can live in `:app` module.
-5. Add deps from `references/dependencies.md`, integrate template step by step.
-6. Run `fix:optin` and `fix:deps` as post-checks.
-7. If `claude-md-management:revise-claude-md` active → call it now.
-8. Run scoped `analyze_ui --src <new files>` as final validation.
-9. Run `scripts/validate_fixes.sh <project-root>` as fast post-fix verification.
-10. Run `scripts/verify_project_build.sh --project-dir <project-root> --module app` as final project-local verification.
+2. `phone` → harden navigation scaffold, scroll guards, text overflow. Lives in `:app`.
+3. `tablet` → pane scaffolds (`ListDetailPaneScaffold`, `NavigationSuiteScaffold`). Lives in `:app`.
+4. `resizable` → `ResizableLayout.kt` + `rememberDevicePosture()`. Lives in `:app`. Covers foldables AND multi-window.
+5. `tv` → confirm separate `:tv` module (`com.android.application`) exists or scaffold it. Never mix `androidx.tv.*` into `:app`. If `feature-dev:feature-dev` active and > 3 new files needed → delegate.
+6. `wear` → confirm separate `:wear` module exists or scaffold it. If `feature-dev:feature-dev` active and > 3 new files needed → delegate.
+7. `auto` → confirm separate `:auto`/`:automotive` module or flavor.
+8. Add deps from `references/dependencies.md`, integrate template step by step.
+9. Run `fix:optin` and `fix:deps` as post-checks.
+10. If `claude-md-management:revise-claude-md` active → call it now.
+11. Run scoped `analyze_ui --src <new files>` as final validation.
+12. Run `scripts/validate_fixes.sh <project-root>` as fast post-fix verification.
+13. **Verification gate:** if `superpowers:verification-before-completion` active → invoke it; otherwise run `scripts/verify_project_build.sh --project-dir <project-root> --module app`. Do NOT emit DONE until this passes.
 
 ---
 
-## 8 — Form Factor Reference (compact)
+## 11 — Form Factor Reference (compact)
 
 | Track | Templates | Key constraint |
 |---|---|---|
-| Phone | `phone/AdaptiveScaffold.kt` | `currentWindowAdaptiveInfo()` once at root (`BoxWithConstraintsGuard` is escape-hatch only) |
-| Large Screen | `tablet-large-screen/ListDetailScreen.kt`, `SupportingPaneScreen.kt` | All panes in `AnimatedPane {}` · needs `@OptIn` |
-| Foldable | `foldable/PostureDetector.kt`, `foldable/FoldAwareLayout.kt` | `produceState` + `WindowInfoTracker` collection — no manual `State` wrappers |
-| Wear OS | `wear/WearAppScaffold.kt`, `wear/WearRoundSquareLayout.kt` | Separate `:wear` module — never mix `compose.material3` |
-| Android Auto | `auto/MyCarAppService.kt`, `auto/MainScreen.kt` | Template model only — no Compose, no `setContent {}` |
-| Density | `references/density-table.md` | Vectors in `drawable/`; bitmaps need mdpi + xxhdpi minimum |
-| Desktop / Chromebook | `references/ux-patterns.md` (Discovery Grid, Content Discovery Feed) | Rail → PermanentNavigationDrawer at Expanded; grid 6+ columns; no screen orientation lock |
+| `phone` | `phone/AdaptiveScaffold.kt` | `currentWindowAdaptiveInfo()` once at root — `BoxWithConstraintsGuard` is escape-hatch only |
+| `tablet` | `tablet-large-screen/ListDetailScreen.kt`, `SupportingPaneScreen.kt` | All panes in `AnimatedPane {}` · needs `@OptIn` |
+| `resizable` | `resizable/ResizableLayout.kt` | `rememberDevicePosture()` via `produceState` — covers foldable postures AND multi-window resize |
+| `tv` | `tv/TvAppScaffold.kt` | Separate `:tv` module — never import `androidx.tv.*` in `:app` · `Surface {}` required at root · D-pad only |
+| `wear` | `wear/WearAppScaffold.kt`, `wear/WearRoundSquareLayout.kt` | Separate `:wear` module — never mix `compose.material3` |
+| `auto` | `auto/MyCarAppService.kt`, `auto/MainScreen.kt` | Template model only — no Compose, no `setContent {}` |
+| `density` | `references/density-table.md` | Vectors in `drawable/`; bitmaps need mdpi + xxhdpi minimum |
+| Desktop / Chromebook | `references/ux-patterns.md` | Rail → PermanentNavigationDrawer at Expanded; grid 6+ columns; no orientation lock |
 
 Breakpoints → `references/breakpoints.md` · Dependencies → `references/dependencies.md` · Decision guide → `references/form-factor-decision-guide.md` · UX Patterns → `references/ux-patterns.md`
 
 ---
 
-## 9 — Hard Constraints (never violate)
+## 12 — Hard Constraints (never violate)
 
 1. No `setContent {}` in any `Screen` subclass (Android Auto).
 2. Never import `androidx.compose.material3` in a Wear source set.
-3. Never lock `android:screenOrientation` for `targetSdk >= 36` + sw600dp targets.
-4. Every file using `adaptive`/`adaptive-layout`/`adaptive-navigation` must have `@file:OptIn(ExperimentalMaterial3AdaptiveApi::class)`.
-5. `currentWindowAdaptiveInfo()` called once at composition root — never deep in the tree.
-6. `calculateWindowSizeClass(activity)` is deprecated — always replace with `currentWindowAdaptiveInfo().windowSizeClass`.
-7. Auto item limit: 6 items max on `minCarApiLevel` 1-2. Suggest pagination, not ignoring the limit.
-8. Never block a workflow because a companion skill is absent. Degrade gracefully to memory-file-only mode.
-9. `GridCells.Fixed(2)` hardcoded in production is a WARNING — always flag and offer `fix:content-density`.
-10. Maximum one hero-weight card above the fold — flag additional heroes as WARNING.
-11. Never show `NavigationBar` and `NavigationRail` simultaneously — `NavigationSuiteScaffold` is the only correct way to handle both.
+3. Never import `androidx.tv.*` in the phone `:app` module — TV material is incompatible with mobile Material3.
+4. Never lock `android:screenOrientation` for `targetSdk >= 36` + sw600dp targets.
+5. Every file using `adaptive`/`adaptive-layout`/`adaptive-navigation` must have `@file:OptIn(ExperimentalMaterial3AdaptiveApi::class)`.
+6. `currentWindowAdaptiveInfo()` called once at composition root — never deep in the tree.
+7. `calculateWindowSizeClass(activity)` is deprecated — always replace with `currentWindowAdaptiveInfo().windowSizeClass`.
+8. Auto item limit: 6 items max on `minCarApiLevel` 1-2. Suggest pagination, not ignoring the limit.
+9. TV apps must declare `<uses-feature android:name="android.hardware.touchscreen" android:required="false"/>` — without this, Play Store will not list the app on TV devices.
+10. `resizable` track covers both foldables and multi-window — never add them as separate tracks.
+11. Never block a workflow because a companion skill is absent. Degrade gracefully to memory-file-only mode.
+12. `GridCells.Fixed(2)` hardcoded in production is a WARNING — always flag and offer `fix:content-density`.
+13. Maximum one hero-weight card above the fold — flag additional heroes as WARNING.
+14. Never show `NavigationBar` and `NavigationRail` simultaneously — `NavigationSuiteScaffold` is the only correct way to handle both.

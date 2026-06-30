@@ -145,3 +145,51 @@ androidTestImplementation(libs.car.app.testing)
 ```
 
 > The Auto module should be a separate `com.android.application` or `com.android.library` module. It registers a `<service>` in its own `AndroidManifest.xml`. Mixing it into the phone `:app` module adds car-specific permissions to the phone APK.
+
+---
+
+## Android TV
+
+**CRITICAL:** These dependencies must be in a **separate `:tv` Gradle module** (`com.android.application`). Never import `androidx.tv.*` in the phone `:app` module.
+
+```toml
+# [versions]
+tvCompose     = "1.0.0"
+tvFoundation  = "1.0.0"
+
+# [libraries]
+tv-material   = { group = "androidx.tv", name = "tv-material",   version.ref = "tvCompose" }
+tv-foundation = { group = "androidx.tv", name = "tv-foundation",  version.ref = "tvFoundation" }
+```
+
+```kotlin
+// tv/build.gradle.kts
+// === FORM FACTOR: Android TV ===
+implementation(libs.tv.material)
+implementation(libs.tv.foundation)
+```
+
+> The `:tv` module also needs `compileSdk = 34+`, `apply plugin: 'com.android.application'` to produce a standalone APK, and a `<uses-feature android:name="android.software.leanback"/>` + `<uses-feature android:name="android.hardware.touchscreen" android:required="false"/>` in its `AndroidManifest.xml`. TV apps are distributed via the Google TV / Android TV store separately from the phone Play Store.
+
+---
+
+## Resizable / Foldable
+
+```toml
+# [versions]
+windowManager          = "1.5.1"
+lifecycleRuntimeCompose = "2.9.0"
+
+# [libraries]
+window-manager          = { group = "androidx.window",    name = "window",                   version.ref = "windowManager" }
+window-testing          = { group = "androidx.window",    name = "window-testing",            version.ref = "windowManager" }
+lifecycle-runtime-compose = { group = "androidx.lifecycle", name = "lifecycle-runtime-compose", version.ref = "lifecycleRuntimeCompose" }
+```
+
+```kotlin
+// app/build.gradle.kts
+// === FORM FACTOR: Resizable (foldable + multi-window) ===
+implementation(libs.window.manager)
+implementation(libs.lifecycle.runtime.compose)
+debugImplementation(libs.window.testing)
+```

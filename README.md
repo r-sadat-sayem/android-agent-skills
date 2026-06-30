@@ -7,6 +7,27 @@ Published repo: `https://github.com/r-sadat-sayem/android-agent-skills`
 
 ---
 
+> **Tip — install `superpowers` first for best results**
+>
+> The [`superpowers`](https://github.com/obra/superpowers) skill unlocks orchestration, brainstorming, planning, and parallel agent execution that this skill hooks into automatically. Installing it before `android-adaptive-ui` means the skill can delegate complex multi-file tasks, run structured design sessions before writing code, and use systematic debugging when a fix introduces a new error — all without you having to orchestrate it manually.
+>
+> ```
+> Install the superpowers skill from https://github.com/obra/superpowers
+>
+> 1. Clone the repo:
+>    git clone https://github.com/obra/superpowers.git /tmp/superpowers
+> 2. Copy the skills directory into Claude:
+>    cp -r /tmp/superpowers/skills/* ~/.claude/skills/
+> 3. Confirm at least these are present:
+>    ls ~/.claude/skills/ | grep -E "brainstorming|writing-plans|systematic-debugging|executing-plans"
+> 4. Clean up:
+>    rm -rf /tmp/superpowers
+> ```
+>
+> Once installed, `android-adaptive-ui` will automatically activate brainstorming before complex `add_form_factor` work, use `writing-plans` before multi-file scaffold generation, and hand off to `systematic-debugging` when an applied fix introduces a compilation error.
+
+---
+
 ### Option A — Install via AI Agent (recommended)
 
 **The fastest path.** Copy the prompt below and paste it directly into Claude Code or Codex chat. The agent will check your current installed version, compare it against the latest on GitHub, install (replacing any older version), and confirm the result — no terminal setup required on your part.

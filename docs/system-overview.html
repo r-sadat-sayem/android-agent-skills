@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Android Adaptive UI — System Overview</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f1117; color: #e2e8f0; padding: 24px; min-height: 100vh; }
+  h1 { font-size: 18px; font-weight: 700; color: #fff; margin-bottom: 4px; }
+  .subtitle { font-size: 13px; color: #64748b; margin-bottom: 28px; }
+
+  .diagram { display: flex; flex-direction: column; gap: 0; }
+
+  /* Layer labels */
+  .layer-row { display: flex; align-items: stretch; gap: 0; margin-bottom: 2px; }
+  .layer-label {
+    width: 108px; min-width: 108px;
+    display: flex; align-items: center; justify-content: flex-end;
+    padding-right: 14px;
+    font-size: 11px; font-weight: 600; letter-spacing: .06em;
+    color: #475569; text-transform: uppercase;
+  }
+  .layer-content { flex: 1; display: flex; gap: 8px; align-items: center; }
+
+  /* Boxes */
+  .box {
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 12px; font-weight: 600;
+    white-space: nowrap;
+    border: 1.5px solid;
+    text-align: center;
+    line-height: 1.35;
+  }
+  .box small { display: block; font-size: 10px; font-weight: 400; margin-top: 2px; opacity: .75; white-space: normal; }
+
+  /* Colour themes */
+  .user    { background: #1e293b; border-color: #334155; color: #94a3b8; }
+  .entry   { background: #172554; border-color: #1d4ed8; color: #93c5fd; }
+  .init    { background: #14532d; border-color: #15803d; color: #86efac; }
+  .engine  { background: #3b0764; border-color: #7c3aed; color: #c4b5fd; }
+  .data    { background: #1c1917; border-color: #57534e; color: #a8a29e; }
+  .companion { background: #1c1a12; border-color: #a16207; color: #fde047; }
+  .output  { background: #0f172a; border-color: #0ea5e9; color: #7dd3fc; }
+  .ci      { background: #1a0a0a; border-color: #dc2626; color: #fca5a5; }
+
+  /* Arrows between layers */
+  .arrow-row { display: flex; align-items: center; margin: 0; }
+  .arrow-spacer { width: 108px; min-width: 108px; }
+  .arrow-line { flex: 1; display: flex; align-items: center; gap: 12px; padding: 3px 0; }
+  .arrow { font-size: 11px; color: #475569; display: flex; align-items: center; gap: 4px; }
+  .arrow::before { content: ''; display: block; width: 1px; height: 18px; background: #334155; }
+  .arrow-label { font-size: 10px; color: #475569; }
+
+  .connector { flex: 1; height: 1px; background: linear-gradient(to right, #334155, transparent); margin: 0 4px; }
+
+  /* Section dividers */
+  .divider { height: 20px; }
+
+  /* Legend */
+  .legend { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 24px; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #64748b; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 3px; border: 1.5px solid; flex-shrink: 0; }
+
+  /* Highlight band */
+  .band {
+    border-radius: 10px;
+    border: 1px solid #1e293b;
+    padding: 14px 14px 14px 0;
+    margin-bottom: 2px;
+    background: #0d1117;
+  }
+
+  .flex-wrap { flex-wrap: wrap; }
+  .gap4 { gap: 4px; }
+</style>
+</head>
+<body>
+<h1>Android Adaptive UI Skill — System Architecture</h1>
+<p class="subtitle">Component map: how user input flows through the skill to code output</p>
+
+<div class="diagram">
+
+  <!-- LAYER 0: User input -->
+  <div class="layer-row">
+    <div class="layer-label">User input</div>
+    <div class="layer-content flex-wrap gap4">
+      <div class="box user">analyze_ui<br><small>--src path</small></div>
+      <div class="box user">analyze_sketch<br><small>--img path</small></div>
+      <div class="box user">generate_layout<br><small>--prd / --from-sketch</small></div>
+      <div class="box user">ux_preview<br><small>--src / --pattern</small></div>
+      <div class="box user">apply_responsiveness<br><small>--track / --only</small></div>
+      <div class="box user">fix:* atomic<br><small>9 sub-commands</small></div>
+      <div class="box user">add_form_factor<br><small>6 targets</small></div>
+    </div>
+  </div>
+
+  <!-- arrow -->
+  <div class="arrow-row">
+    <div class="arrow-spacer"></div>
+    <div class="arrow-line">
+      <div class="arrow"><span class="arrow-label">every session</span></div>
+    </div>
+  </div>
+
+  <!-- LAYER 1: Session init -->
+  <div class="layer-row">
+    <div class="layer-label">Session init</div>
+    <div class="layer-content flex-wrap gap4">
+      <div class="box init">Companion probe<br><small>10 skills checked</small></div>
+      <div class="box init">Playbook load<br><small>solutions-playbook.json · 13 patterns</small></div>
+      <div class="box init">UX patterns load<br><small>ux-patterns.md · composition rules</small></div>
+      <div class="box init">Memory init<br><small>.adaptive-ui-memory.json</small></div>
+    </div>
+  </div>
+
+  <!-- arrow -->
+  <div class="arrow-row">
+    <div class="arrow-spacer"></div>
+    <div class="arrow-line">
+      <div class="arrow"><span class="arrow-label">route by command</span></div>
+    </div>
+  </div>
+
+  <!-- LAYER 2: Workflow engines -->
+  <div class="layer-row">
+    <div class="layer-label">Workflow engines</div>
+    <div class="layer-content flex-wrap gap4">
+      <div class="box engine">Audit engine<br><small>layout_audit.py<br>6 checkers</small></div>
+      <div class="box engine">Vision engine<br><small>analyze_sketch<br>UX pattern detection</small></div>
+      <div class="box engine">Generation engine<br><small>generate_layout<br>PRD → scaffold</small></div>
+      <div class="box engine">Preview server<br><small>ux_preview_server.py<br>localhost:8080</small></div>
+      <div class="box engine">Fix engine<br><small>apply_responsiveness<br>+ atomic fix:*</small></div>
+      <div class="box engine">Scaffold engine<br><small>add_form_factor<br>6 targets</small></div>
+    </div>
+  </div>
+
+  <!-- arrow -->
+  <div class="arrow-row">
+    <div class="arrow-spacer"></div>
+    <div class="arrow-line">
+      <div class="arrow"><span class="arrow-label">reads / writes</span></div>
+    </div>
+  </div>
+
+  <!-- LAYER 3: Data stores -->
+  <div class="layer-row">
+    <div class="layer-label">Data stores</div>
+    <div class="layer-content flex-wrap gap4">
+      <div class="box data">.adaptive-ui-memory.json<br><small>JSON-LD · file hashes · findings · resolved trail</small></div>
+      <div class="box data">solutions-playbook.json<br><small>13 patterns · detection signals · code sketches</small></div>
+      <div class="box data">templates/<br><small>7 form factors · Kotlin scaffolds</small></div>
+      <div class="box data">references/<br><small>breakpoints · deps · UX patterns · audit rules</small></div>
+      <div class="box data">ux_preview_output/<br><small>feedback.json · user selections</small></div>
+    </div>
+  </div>
+
+  <!-- arrow -->
+  <div class="arrow-row">
+    <div class="arrow-spacer"></div>
+    <div class="arrow-line">
+      <div class="arrow"><span class="arrow-label">conditional delegation</span></div>
+    </div>
+  </div>
+
+  <!-- LAYER 4: Companion skills -->
+  <div class="layer-row">
+    <div class="layer-label">Companions</div>
+    <div class="layer-content flex-wrap gap4">
+      <div class="box companion">verification-before-completion<br><small>build gate before DONE</small></div>
+      <div class="box companion">subagent-driven-development<br><small>parallel fix execution ≥5 CRITICALs</small></div>
+      <div class="box companion">systematic-debugging<br><small>compile error → hypothesis loop</small></div>
+      <div class="box companion">writing-plans<br><small>reviewable plan before multi-file changes</small></div>
+      <div class="box companion">brainstorming<br><small>design decisions before generation</small></div>
+      <div class="box companion">gsd-* suite<br><small>graphify · intel · thread · note · debug</small></div>
+    </div>
+  </div>
+
+  <!-- arrow -->
+  <div class="arrow-row">
+    <div class="arrow-spacer"></div>
+    <div class="arrow-line">
+      <div class="arrow"><span class="arrow-label">structured output contract</span></div>
+    </div>
+  </div>
+
+  <!-- LAYER 5: Output -->
+  <div class="layer-row">
+    <div class="layer-label">Output</div>
+    <div class="layer-content flex-wrap gap4">
+      <div class="box output">SCAN card<br><small>form factors · files · companions</small></div>
+      <div class="box output">FINDINGS table<br><small>SEV · file:line · category</small></div>
+      <div class="box output">BEFORE→AFTER diff<br><small>confirmation gate</small></div>
+      <div class="box output">DONE block<br><small>after verification passes</small></div>
+      <div class="box output">Written code<br><small>scaffold / fixed Kotlin files</small></div>
+    </div>
+  </div>
+
+  <!-- arrow -->
+  <div class="arrow-row">
+    <div class="arrow-spacer"></div>
+    <div class="arrow-line">
+      <div class="arrow"><span class="arrow-label">standalone path (no Claude)</span></div>
+    </div>
+  </div>
+
+  <!-- LAYER 6: CI -->
+  <div class="layer-row">
+    <div class="layer-label">CI / standalone</div>
+    <div class="layer-content flex-wrap gap4">
+      <div class="box ci">layout_audit.py --format json<br><small>exit 0/1/2 · JSON report</small></div>
+      <div class="box ci">layout_audit_psi.sh<br><small>AST-backed Kotlin checks</small></div>
+      <div class="box ci">validate_fixes.sh<br><small>fast grep post-fix check</small></div>
+      <div class="box ci">verify_project_build.sh<br><small>Gradle build verification</small></div>
+      <div class="box ci">template_smoke_check.py<br><small>compile-breaking template guard</small></div>
+    </div>
+  </div>
+
+</div>
+
+<div class="legend">
+  <div class="legend-item"><div class="legend-dot" style="background:#172554;border-color:#1d4ed8"></div> User commands</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#14532d;border-color:#15803d"></div> Session initialisation</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#3b0764;border-color:#7c3aed"></div> Workflow engines</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#1c1917;border-color:#57534e"></div> Data stores</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#1c1a12;border-color:#a16207"></div> Companion skills (optional)</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#0f172a;border-color:#0ea5e9"></div> Output</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#1a0a0a;border-color:#dc2626"></div> CI / standalone scripts</div>
+</div>
+</body>
+</html>
