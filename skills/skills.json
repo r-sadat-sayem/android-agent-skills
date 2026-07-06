@@ -9,6 +9,11 @@
       "name": "android-adaptive-ui",
       "path": "skills/android-adaptive-ui",
       "description": "Adaptive UI audit and remediation for phone, tablet, resizable/foldable, TV, Wear OS, and Android Auto."
+    },
+    {
+      "name": "android-17-migrate",
+      "path": "skills/android-17-migrate",
+      "description": "Scan, report, auto-fix, and checklist generation for Android 17 (API 37) migration."
     }
   ]
 }
